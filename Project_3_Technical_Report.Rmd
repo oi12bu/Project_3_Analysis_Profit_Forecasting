@@ -1,0 +1,76 @@
+---
+title: "Project 3 Technical Report"
+author: "Bea Sauve, Elton nichols, Kainen Osborne"
+date: "2026-03-03"
+course: "CSB304 H10 31429 Data Analytics in Business"
+instructor: "Eric Lloyd"
+output: html_document
+---
+
+# Timeless Transport Models Resource Analysis and Profit Forecasting
+## *Business Objective*
+Timeless Transport Models operates three factories producing two product lines each. As the company enters the second half of 2005 (June-December), leadership requires production forcasts, cost analysis, and projected profit estimates.   
+This report will entail:   
+
+- Aggregates of weekly production and cost data into monthly totals
+
+- Exploratory data analysis
+
+- Forecasts of monthly production (June–December 2005)
+
+- Calculations of average cost and profit per product line
+
+- Projects total expected profit for the remainder of 2005   
+
+All analysis is conducted in R using reproducible workflows.
+ 
+## *Expected Uses*
+This analysis is intended to support strategic and opperational decisions for Timeless Transport Models during the second half of 2005. Specifically, the results of this forecasting and profit analysis may be used in the following ways:
+
+- Production Planning
+
+- Budgeting and financial Planning
+
+- Product line Strategies
+
+- Factory Performance Evaluations
+
+- Scenario Planning
+
+- Strategical Decision Making
+
+## *Data Refinement*
+ Give a summary of the data. Present relevant statistics, graphs or data and any transformations applied to the data.
+ 
+## *Data Statistics*
+
+## *Project Analysis*
+Walk through your modeling and analytical processes step by step:
+- Explain how you aggregated weekly data into monthly forecasts.
+- Justify the forecasting models you selected (e.g., ARIMA, ETS, STL, linear modeling).
+- Present your monthly forecasts for each product line from June–December 2005.
+- Calculate average production cost per product line.
+- Compute average profit per product line.
+- Use the forecasted production quantities and average profit to estimate expected total profit for the second half of 2005.
+- Include the R code used for all calculations, models and visualizations.
+
+## *Limitations and Assumptions*
+While analysis provides strategically grounded projections, several limitations and assumptions should be acknowledged.
+
+### Assumptions
+- Historical Patterns: Forcasting modesl assume past production trends and seasonality will persist through December 2005
+
+- Stable Cost Structure: Average cost per unit is assumed to remain consistant throughout the forecast period
+
+- Externam Market Influence: The model does not account for microeconomic shifts, supplychain disruptions, or fluctuations in demand.
+
+- Accurate Data: All analyses assume historical data is accurate after cleaning and aggregation.
+
+### Limitations
+- Model simplicity: Time series models do not account for external drivers such as economic fluctuations or competitor activity.
+
+- No Constraints Modeled: Forecasts assume factories can meet projected production levels without constraints.   
+These limitations suggest that ongoing monitoring of actual production is recommended. Forecasts should also be treated as directional guidance rather than guaranteed outcomes.
+
+## *Concluding Details*
+Provide a written conclusion summarizing your analysis.  Explain which product lines are most profitable, how production is expected to trend through December 2005, and the overall projected profit for Timeless Transport Models.

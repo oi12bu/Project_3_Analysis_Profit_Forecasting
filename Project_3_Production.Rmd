@@ -1,0 +1,20 @@
+---
+title: "Project_3_Production"
+author: "Bea Sauve, Elton nichols, Kainen Osborne"
+date: "2026-03-03"
+output: html_document
+---
+
+# Project 3 Production Notebook
+This notebook will entail all team members work including data refinement, forecasting productions, and statistic generations. Team member contributions will be divided into sections containing that specific persons work.
+
+## ---------- Data Refinement ---------------------
+
+
+## ---------- Bea's Production ---------------------
+
+
+## ---------- Eltons's Production ---------------------
+
+
+## ---------- Kainen's Production ---------------------
