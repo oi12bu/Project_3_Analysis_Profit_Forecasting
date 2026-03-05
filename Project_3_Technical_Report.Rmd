@@ -148,11 +148,6 @@ Several Assumptions are made for this data cleaning process...
 - Missing values represent incomplete reporting rather than zero production.
 - Production and cost values are indicative values of the week they were produced and not a  compounding of former weeks
 - The data represents continuous weekly reporting without major time gaps.
-
-
-
- 
- Give a summary of the data. Present relevant statistics, graphs or data and any transformations applied to the data.
  
 ## *Data Statistics*
 

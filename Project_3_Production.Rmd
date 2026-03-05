@@ -43,7 +43,6 @@ production_data$`Vintage Cars CPU` <- ((production_data$`Vintage Cars`/productio
 
 # Aggregate the monthly data
 monthly_data <- production_data %>%
-  mutate(month = floor_date(as.Date(week), "month")) %>%
   group_by(factory_id, month) %>%
   summarise(
     total_units = sum(total_units),
