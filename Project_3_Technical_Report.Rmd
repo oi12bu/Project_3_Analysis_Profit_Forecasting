@@ -25,7 +25,7 @@ This report will entail:
 All analysis is conducted in R using reproducible workflows.
  
 ## *Expected Uses*
-This analysis is intended to support strategic and opperational decisions for Timeless Transport Models during the second half of 2005. Specifically, the results of this forecasting and profit analysis may be used in the following ways:
+This analysis is intended to support strategic and operational decisions for Timeless Transport Models during the second half of 2005. Specifically, the results of this forecasting and profit analysis may be used in the following ways:
 
 - Production Planning
 
@@ -58,11 +58,11 @@ Walk through your modeling and analytical processes step by step:
 While analysis provides strategically grounded projections, several limitations and assumptions should be acknowledged.
 
 ### Assumptions
-- Historical Patterns: Forcasting modesl assume past production trends and seasonality will persist through December 2005
+- Historical Patterns: Forecasting models assume past production trends and seasonality will persist through December 2005
 
-- Stable Cost Structure: Average cost per unit is assumed to remain consistant throughout the forecast period
+- Stable Cost Structure: Average cost per unit is assumed to remain consistent throughout the forecast period
 
-- Externam Market Influence: The model does not account for microeconomic shifts, supplychain disruptions, or fluctuations in demand.
+- External Market Influence: The model does not account for micro economic shifts, supply chain disruptions, or fluctuations in demand.
 
 - Accurate Data: All analyses assume historical data is accurate after cleaning and aggregation.
 
