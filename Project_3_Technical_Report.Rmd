@@ -61,12 +61,16 @@ library(lubridate)
 ```
 
 #### Import Data Files
-With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis. The file used to conduct said analysis is the "weekly_factory_production.csv". This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced. Additionally, the file will be referred to as "production_data" for the remainder of this analysis.
+With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis. The file used to conduct said analysis is the "weekly_factory_production.csv". This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced. Additionally, the file will be referred to as "production_data" for the remainder of this analysis. "sales_data_cleaned.csv" is a file containing our customer order data, sales and distributions from 2003-2005. This file will be used for profit analysis, and will be referred to as "sales_data".
 ```{r import_files_Bea}
-# Import data, convert weeks into date datatype
-production_data <- read_csv('weekly_factory_production.csv',
+# Import production data, convert weeks into date datatype
+production_data <- read_csv('CSV/weekly_factory_production.csv',
                             col_types = cols(
                               week = col_date(format = "%Y-%m-%d")))
+
+# Import sales data, Convert N/A values back to North America
+sales_data <- read_csv("CSV/sales_data_sample_cleaned.csv")
+sales_data$TERRITORY[is.na(sales_data$TERRITORY)] <- "NA"
 ```
 
 #### Data Transformation
@@ -100,9 +104,8 @@ colSums((is.na(production_data)))
 ```
 ```{r data_refinement_Bea}
 
-# Implement a Month column displaying the month name for aggregation and visualization
-production_data <- production_data %>%
-  group_by(month = format(week, "%B"))
+# Implement a Month column displaying the month and year for aggregation and visualization
+production_data$Month <- format(production_data$week, "%Y-%m")
 
 # Production counts by item types are available, but total production counts are. 
 # Calculate total production counts
@@ -116,11 +119,11 @@ production_data$`Weekly CPU` <- production_data$weekly_cost / production_data$to
 # To determine Monthly Metrics for EDA we must aggregate the data by months.
 # This separate accumulated data set will be known as "monthly_data". It will be aggregated by monthly costs and poduction by factory.
 monthly_data <- production_data %>%
-  group_by(factory_id, month) %>%
+  group_by(Month) %>%
   summarise(
-    total_units = sum(total_units),
-    total_cost  = sum(weekly_cost),
-    .groups = "drop"
+    Monthly_Production = sum(total_units),
+    Monthly_Cost = sum(weekly_cost),
+    Monthly_avg_CPU = total_cost / total_units
   )
 
 ```

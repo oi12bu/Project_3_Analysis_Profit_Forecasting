@@ -14,49 +14,132 @@ library(readr)
 library(lubridate)
 ```
 
-## ---------- Data Refinement ---------------------
-```{r}
+## ---------- Production Data Refinement ---------------------
+```{r production_refinement}
 # Import data, convert weeks into date datatype
-production_data <- read_csv('weekly_factory_production.csv',
+production_data <- read_csv('CSV/weekly_factory_production.csv',
                             col_types = cols(
                               week = col_date(format = "%Y-%m-%d")))
-
 
 # Are there null vals
 colSums((is.na(production_data)))
 
 # Add month column
-production_data <- production_data %>%
-  group_by(month = format(week, "%B"))
+production_data$MONTH_PRODUCED <- format(production_data$week, "%Y-%m")
 
 # Calculate total production
 production_data$total_units <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes + production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
 
 # Calculate item production costs
 production_data$`Weekly CPU` <- production_data$weekly_cost / production_data$total_units
-production_data$`Classic Cars CPU` <- ((production_data$`Classic Cars`/production_data$total_units) * production_data$weekly_cost)/production_data$`Classic Cars`
-production_data$`Motorcycles CPU` <- ((production_data$`Motorcycles`/production_data$total_units) * production_data$weekly_cost)/production_data$`Motorcycles`
-production_data$`Planes CPU` <- ((production_data$`Planes`/production_data$total_units) * production_data$weekly_cost)/production_data$`Planes`
-production_data$`Ships CPU` <- ((production_data$`Ships`/production_data$total_units) * production_data$weekly_cost)/production_data$`Ships`
-production_data$`Trucks and Buses CPU` <- ((production_data$`Trucks and Buses`/production_data$total_units) * production_data$weekly_cost)/production_data$`Trucks and Buses`
-production_data$`Vintage Cars CPU` <- ((production_data$`Vintage Cars`/production_data$total_units) * production_data$weekly_cost)/production_data$`Vintage Cars`
 
 # Aggregate the monthly data
 monthly_data <- production_data %>%
-  group_by(factory_id, month) %>%
+  group_by(MONTH_PRODUCED) %>%
   summarise(
-    total_units = sum(total_units),
-    total_cost  = sum(weekly_cost),
-    .groups = "drop"
+    MONTHLY_PRODUCTION = sum(total_units),
+    MONTHLY_COST = sum(weekly_cost),
+    MONTHLY_AVG_CPU = MONTHLY_COST / MONTHLY_PRODUCTION
   )
+# Crate a long format of production data
+long_production_data <- production_data %>% 
+  group_by(MONTH_PRODUCED) %>%
+  pivot_longer(
+    cols = c(`Classic Cars`,Motorcycles, Planes, Ships, `Trucks and Buses`, `Vintage Cars`),
+    names_to = "PRODUCTLINE",
+    values_to = "UNITS_PRODUCED"
+  )
+# Calculate product costs
+long_production_data$PRODUCT_COSTS <- long_production_data$`Weekly CPU`* long_production_data$UNITS_PRODUCED
 
-
-
+# condense the data by month and product line
+Condensed_production <- long_production_data %>%
+  group_by(MONTH_PRODUCED, PRODUCTLINE) %>%
+  summarise(
+    TOTAL_UNITS_PRODUCED = sum(UNITS_PRODUCED),
+    AVG_prod_cost = mean(PRODUCT_COSTS)
+  )
+# Add Cost per unit from monthly data set, manual calculations of compounded CPU lead to compounded floating point errors
+Condensed_production <- Condensed_production %>%
+  left_join(
+    monthly_data %>% 
+      select(MONTH_PRODUCED, MONTHLY_AVG_CPU),
+    by = c("MONTH_PRODUCED" ="MONTH_PRODUCED")
+  )
+# Calculate production costs
+Condensed_production$AVG_PRODUCTION_COST <- Condensed_production$MONTHLY_AVG_CPU * Condensed_production$TOTAL_UNITS_PRODUCED
+  
 summary(production_data)
 glimpse(production_data)
-  
 
 ```
+## ---------- Sales Data Refinement ---------------------
+```{r}
+# Import sales data, Convert N/A values back to North America, and format date
+sales_data <- read_csv("CSV/sales_data_sample_cleaned.csv")
+sales_data$TERRITORY[is.na(sales_data$TERRITORY)] <- "NA"
+sales_data$ORDERDATE <- mdy(sales_data$ORDERDATE)
+
+# Create a Month_Ordered Column containing the month and year combined
+sales_data$MONTH_ORDERED <- format(sales_data$ORDERDATE, "%Y-%m")
+
+#Calculate average price by product type- used for product monthly data
+sales_monthly_av_price <- sales_data %>%
+  group_by(MONTH_ORDERED, PRODUCTLINE) %>%
+  summarise(
+      AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
+  )
+
+#Calculate average price by month - used for monthly data
+Monthly_Sales_Data <- sales_data %>%
+  group_by(MONTH_ORDERED) %>%
+  summarise(
+      AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
+  )
+
+```
+## ---------- Combine Sales and Production ---------------------
+```{r}
+# Implement a Full join of the condensed production data and sales data
+Production_and_Sales <- Condensed_production %>%
+  dplyr::full_join(sales_monthly_av_price,
+            by = c("MONTH_PRODUCED" = "MONTH_ORDERED",
+                   "PRODUCTLINE" = "PRODUCTLINE"))
+# Add Average Revenue per product
+Production_and_Sales$AVG_REVENUE <- Production_and_Sales$TOTAL_UNITS_PRODUCED * Production_and_Sales$AVG_PRICE_SOLD
+Production_and_Sales$AVG_PROFIT <- Production_and_Sales$AVG_REVENUE -
+  Production_and_Sales$AVG_PRODUCTION_COST
+
+# Implement a Full Join of monthly sales and monthly production
+Monthly_Sales_and_Production <- Monthly_Sales_Data %>%
+  dplyr::full_join(
+    monthly_data,
+    by = c('MONTH_ORDERED' = 'MONTH_PRODUCED')
+  )
+# Calculate Revenue
+Monthly_Sales_and_Production$AVG_REVENUE <- Monthly_Sales_and_Production$MONTHLY_PRODUCTION * Monthly_Sales_and_Production$AVG_PRICE_SOLD
+
+# Calculate Profit
+Monthly_Sales_and_Production$AVG_PROFIT <- Monthly_Sales_and_Production$AVG_REVENUE - Monthly_Sales_and_Production$MONTHLY_AVG_CPU
+
+
+
+pro <- Production_and_Sales %>%
+  left_join(
+    Monthly_Sales_and_Production %>% select(MONTH_ORDERED, MONTHLY_AVG_CPU),
+    by = c("MONTH_PRODUCED" ="MONTH_ORDERED")
+  )
+pro$AVG_PRODUCTION_COST <- pro$Monthly_avg_CPU * pro$TOTAL_UNITS_PRODUCED
+
+```
+
+
 
 
 ## ---------- Bea's Production ---------------------
