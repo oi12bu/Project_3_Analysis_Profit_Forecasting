@@ -7,8 +7,56 @@ output: html_document
 
 # Project 3 Production Notebook
 This notebook will entail all team members work including data refinement, forecasting productions, and statistic generations. Team member contributions will be divided into sections containing that specific persons work.
+## ---------- Import Libraries ---------------------
+```{r}
+library(tidyverse)
+library(readr)
+library(lubridate)
+```
 
 ## ---------- Data Refinement ---------------------
+```{r}
+# Import data, convert weeks into date datatype
+production_data <- read_csv('weekly_factory_production.csv',
+                            col_types = cols(
+                              week = col_date(format = "%Y-%m-%d")))
+
+
+# Are there null vals
+colSums((is.na(production_data)))
+
+# Add month column
+production_data <- production_data %>%
+  group_by(month = format(week, "%B"))
+
+# Calculate total production
+production_data$total_units <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes + production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
+
+# Calculate item production costs
+production_data$`Weekly CPU` <- production_data$weekly_cost / production_data$total_units
+production_data$`Classic Cars CPU` <- ((production_data$`Classic Cars`/production_data$total_units) * production_data$weekly_cost)/production_data$`Classic Cars`
+production_data$`Motorcycles CPU` <- ((production_data$`Motorcycles`/production_data$total_units) * production_data$weekly_cost)/production_data$`Motorcycles`
+production_data$`Planes CPU` <- ((production_data$`Planes`/production_data$total_units) * production_data$weekly_cost)/production_data$`Planes`
+production_data$`Ships CPU` <- ((production_data$`Ships`/production_data$total_units) * production_data$weekly_cost)/production_data$`Ships`
+production_data$`Trucks and Buses CPU` <- ((production_data$`Trucks and Buses`/production_data$total_units) * production_data$weekly_cost)/production_data$`Trucks and Buses`
+production_data$`Vintage Cars CPU` <- ((production_data$`Vintage Cars`/production_data$total_units) * production_data$weekly_cost)/production_data$`Vintage Cars`
+
+# Aggregate the monthly data
+monthly_data <- production_data %>%
+  group_by(factory_id, month) %>%
+  summarise(
+    total_units = sum(total_units),
+    total_cost  = sum(weekly_cost),
+    .groups = "drop"
+  )
+
+
+
+summary(production_data)
+glimpse(production_data)
+  
+
+```
 
 
 ## ---------- Bea's Production ---------------------

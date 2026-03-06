@@ -9,7 +9,7 @@ output: html_document
 
 # Timeless Transport Models Resource Analysis and Profit Forecasting
 ## *Business Objective*
-Timeless Transport Models operates three factories producing two product lines each. As the company enters the second half of 2005 (June-December), leadership requires production forcasts, cost analysis, and projected profit estimates.   
+Timeless Transport Models is a Business to Business company focusing on the production and distribution of modeled vehicles. Since 2003 they have been accumulating data regarding customer engagement, sales and productions, and distribution.Timeless Transport Models operates three factories producing two product lines each. As the company enters the second half of 2005 (June-December), leadership requires production forecasts, cost analysis, and projected profit estimates.   
 This report will entail:   
 
 - Aggregates of weekly production and cost data into monthly totals
@@ -22,10 +22,10 @@ This report will entail:
 
 - Projects total expected profit for the remainder of 2005   
 
-All analysis is conducted in R using reproducible workflows.
+All analyses are conducted in R using reproducible workflows. Specifications regarding specific team member contributions will be included in the R chunk title or described directly in this document. Explicit information regarding team member contributions are listed in the CONTRIBUTING.md file located in the git repository.
  
 ## *Expected Uses*
-This analysis is intended to support strategic and opperational decisions for Timeless Transport Models during the second half of 2005. Specifically, the results of this forecasting and profit analysis may be used in the following ways:
+This analysis is intended to support strategic and operational decisions for Timeless Transport Models during the second half of 2005. Specifically, the results of this forecasting and profit analysis may be used in the following ways:
 
 - Production Planning
 
@@ -40,7 +40,114 @@ This analysis is intended to support strategic and opperational decisions for Ti
 - Strategical Decision Making
 
 ## *Data Refinement*
- Give a summary of the data. Present relevant statistics, graphs or data and any transformations applied to the data.
+To kick off this project we must ensure that our data is properly set up for analysis. Data preparations includes importing and formatting data sets, correcting any missing or inaccurate values, and aggregating the data. The data refinement portion of this project was conducted by Bea, our Project Manager.
+
+#### Library Packages to Install
+To begin refinement we must first import the data sets and any libraries needed for this analysis.
+
+- If you plan on running this Project Notebook, and do not have these packages installed navigate to the R Studio Console and copy/paste the install package you do not yet have.
+
+``` r
+install.packages("readr")      # Used to read and import data
+install.packages("tidyverse")  # Used to create data visualizations
+install.packages("lubridate")  # Used for weekday conversion
+```
+#### Library Packages to Load
+
+```{r library_loading}
+library(readr)
+library(tidyverse)
+library(lubridate)
+```
+
+#### Import Data Files
+With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis. The file used to conduct said analysis is the "weekly_factory_production.csv". This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced. Additionally, the file will be referred to as "production_data" for the remainder of this analysis.
+```{r import_files_Bea}
+# Import data, convert weeks into date datatype
+production_data <- read_csv('weekly_factory_production.csv',
+                            col_types = cols(
+                              week = col_date(format = "%Y-%m-%d")))
+```
+
+#### Data Transformation
+With the data fully imported, we now need to refine the data to sure its accuracy for the conduction of analyses. 
+
+Data refinement may include, but is not subject to:
+
+- Modifications of missing or Null values
+- Altering of data types
+- Renaming variables
+- Mathematical implementations
+- Data Standardization
+- Management of outliers
+- Normalizing Data
+- Aggregating Data
+
+Modifications conducted on this data set include, altering data types, mathematical implementations,and data aggregation. We start the process by inspecting our data first, then refine based on our findings.
+```{r data_inspection_Bea, echo = FALSE}
+# Inspect data types
+print("Inspect Data Types")
+str(production_data)
+
+# Observe Descriptive Statistics
+print("Summarize Data Statistics")
+summary(production_data)
+
+# Verify missing values. If present, resolve conflict.
+print("Verify Missing Values")
+colSums((is.na(production_data)))
+
+```
+```{r data_refinement_Bea}
+
+# Implement a Month column displaying the month name for aggregation and visualization
+production_data <- production_data %>%
+  group_by(month = format(week, "%B"))
+
+# Production counts by item types are available, but total production counts are. 
+# Calculate total production counts
+# Calculate total production
+production_data$total_units <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes +
+  production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
+
+# We need to know the rough cost to produce individual products. Calculate the Cost Per Unit (CPU) by dividing the total sales by the total units.
+production_data$`Weekly CPU` <- production_data$weekly_cost / production_data$total_units
+
+# To determine Monthly Metrics for EDA we must aggregate the data by months.
+# This separate accumulated data set will be known as "monthly_data". It will be aggregated by monthly costs and poduction by factory.
+monthly_data <- production_data %>%
+  group_by(factory_id, month) %>%
+  summarise(
+    total_units = sum(total_units),
+    total_cost  = sum(weekly_cost),
+    .groups = "drop"
+  )
+
+```
+#### Any Additional Modifications
+Implemented below are any additional modifications or constructions of data implementation used in this project.
+```{r}
+
+
+
+
+
+```
+
+A General Overview of the data sets we refined and created.
+```{r data_summary_Bea, echo = FALSE}
+print("Summarized Production Data")
+summary(production_data)
+print("Summarized Monthly Data")
+summary(monthly_data)
+```
+#### Data Assumptions
+Several Assumptions are made for this data cleaning process...
+
+- Production values belong to the month of the recorded date,
+- Missing values represent incomplete reporting rather than zero production.
+- Production and cost values are indicative values of the week they were produced and not a  compounding of former weeks
+- The data represents continuous weekly reporting without major time gaps.
  
 ## *Data Statistics*
 
@@ -58,11 +165,11 @@ Walk through your modeling and analytical processes step by step:
 While analysis provides strategically grounded projections, several limitations and assumptions should be acknowledged.
 
 ### Assumptions
-- Historical Patterns: Forcasting modesl assume past production trends and seasonality will persist through December 2005
+- Historical Patterns: Forecasting models assume past production trends and seasonality will persist through December 2005
 
-- Stable Cost Structure: Average cost per unit is assumed to remain consistant throughout the forecast period
+- Stable Cost Structure: Average cost per unit is assumed to remain consistent throughout the forecast period
 
-- Externam Market Influence: The model does not account for microeconomic shifts, supplychain disruptions, or fluctuations in demand.
+- External Market Influence: The model does not account for micro economic shifts, supply chain disruptions, or fluctuations in demand.
 
 - Accurate Data: All analyses assume historical data is accurate after cleaning and aggregation.
 
