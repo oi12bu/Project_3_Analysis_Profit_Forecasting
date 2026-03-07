@@ -2,9 +2,11 @@
 title: "Project 3 Technical Report"
 author: "Bea Sauve, Elton nichols, Kainen Osborne"
 date: "2026-03-03"
-course: "CSB304 H10 31429 Data Analytics in Business"
-instructor: "Eric Lloyd"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
+instructor: Eric Lloyd
+course: CSB304 H10 31429 Data Analytics in Business
 ---
 
 # Timeless Transport Models Resource Analysis and Profit Forecasting
@@ -61,12 +63,18 @@ library(lubridate)
 ```
 
 #### Import Data Files
-With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis. The file used to conduct said analysis is the "weekly_factory_production.csv". This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced. Additionally, the file will be referred to as "production_data" for the remainder of this analysis.
+With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis. The file used to conduct said analysis is the "weekly_factory_production.csv". This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced. Additionally, the file will be referred to as "production_data" for the remainder of this analysis. "sales_data_cleaned.csv" is a file containing our customer order data, sales and distributions from 2003-2005. This file will be used for profit analysis, and will be referred to as "sales_data".
 ```{r import_files_Bea}
-# Import data, convert weeks into date datatype
-production_data <- read_csv('weekly_factory_production.csv',
+# Import production data, convert weeks into date datatype
+production_data <- read_csv('CSV/weekly_factory_production.csv',
                             col_types = cols(
                               week = col_date(format = "%Y-%m-%d")))
+
+# Import sales data, Convert N/A values back to North America, and convert date into date datatype
+sales_data <- read_csv("CSV/sales_data_sample_cleaned.csv")
+sales_data$TERRITORY[is.na(sales_data$TERRITORY)] <- "NA"
+sales_data$ORDERDATE <- mdy(sales_data$ORDERDATE)
+
 ```
 
 #### Data Transformation
@@ -98,31 +106,221 @@ print("Verify Missing Values")
 colSums((is.na(production_data)))
 
 ```
+It appears as though there are no major discrepancies to address within our data. Next we will refine our data to include metrics, summaries metrics, and aggregate data into a monthly format or a product line format. We first begin this process by creating basic columns such as a year and month column, calculating total units, and calculating an aggregate cost per unit.
 ```{r data_refinement_Bea}
 
-# Implement a Month column displaying the month name for aggregation and visualization
-production_data <- production_data %>%
-  group_by(month = format(week, "%B"))
+# Implement a Month column displaying the month and year for aggregation and visualization
+production_data$Month <- format(production_data$week, "%Y-%m")
+# Create a Month_Ordered Column containing the month and year combined. Will be used for future aggregations
+sales_data$MONTH_ORDERED <- format(sales_data$ORDERDATE, "%Y-%m")
 
 # Production counts by item types are available, but total production counts are. 
 # Calculate total production counts
 # Calculate total production
-production_data$total_units <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes +
+production_data$TOTAL_UNITS <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes +
   production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
 
 # We need to know the rough cost to produce individual products. Calculate the Cost Per Unit (CPU) by dividing the total sales by the total units.
-production_data$`Weekly CPU` <- production_data$weekly_cost / production_data$total_units
+production_data$`AGGREGATE_CPU` <- production_data$weekly_cost / production_data$TOTAL_UNITS
 
-# To determine Monthly Metrics for EDA we must aggregate the data by months.
-# This separate accumulated data set will be known as "monthly_data". It will be aggregated by monthly costs and poduction by factory.
-monthly_data <- production_data %>%
-  group_by(factory_id, month) %>%
+```
+### Aggregation by Productline
+Some important features for our analysis include the analyzing of our profits and production based on product lines. We need to aggregate our production data by months and product line types to get a full visualization of our costs and profits based on the specific products we are producing. We will also include a column of the factory the product was produced in for further analysis of our individual factories.
+
+For clarity regarding our individual products, we must convert our data into a long format, placing each product within a Productline column as opposed to our current format with columns labeled by each product we produce. We would also like to include an aggregation of the production costs for each of these units by multiplying our aggregated cost per unit by the total number of units produced.  
+```{r production_long_format_Bea, echo = FALSE}
+# Crate a long format of production data
+weekly_productions_by_productline <- production_data %>% 
+  group_by(Month) %>%
+  pivot_longer(
+    cols = c(`Classic Cars`,Motorcycles, Planes, Ships, `Trucks and Buses`, `Vintage Cars`),
+    names_to = "PRODUCTLINE",
+    values_to = "UNITS_PRODUCED"
+  )
+# Calculate product costs
+weekly_productions_by_productline$AGG_PRODUCT_COSTS <- weekly_productions_by_productline$`AGGREGATE_CPU`* weekly_productions_by_productline$UNITS_PRODUCED
+
+weekly_productions_by_productline
+```
+#### Productline Regression Modeling
+Some issues that arise with the implementation of aggregated costs per unit and calculated productions based on the CPU calculations are the inaccuracies of the calculated metrics. This form of calculation leads to over generalization of the data, and can include compounded floating point errors over time. The best and most accurate solution to calculate accurate CPU's per product line is by conducting a multiple regression analysis on our product line costs.
+
+Listed below is the final conduction of the multiple regression analysis. The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy. An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory. However, this led to less accurate regression results with 61%-68% accuracy rates. The final determination was to run the multiple regression analysis with all of the products, the factory id's, and our outlier data. The resulting regression model lead to a 90% accuracy rating.
+```{r productline_regression_bea, echo = FALSE}
+# Include the factory and outliers for the regression
+Master_Regression <- lm(weekly_cost ~ `Classic Cars` + Motorcycles + Planes + Ships + 
+                  `Trucks and Buses` + `Vintage Cars` + factor(factory_id) + outlier, 
+                  data = production_data)
+summary(Master_Regression)
+```
+This regression analysis tells us that our baseline data intercept resides from Factory 0 data calculations. Meaning that our base costs, electricity, labor, etc., are 322 dollars at Factory 0.
+We see that Factory 1 operates at a a cheaper base cost by 62 dollars. However, it should be noted that this data has a p-value of 0.48 indicating that there is little statistical significance that this value is accurate. Contrary to Factory 1, Factory 2 operates at a more expensive cost of 315 dollars more than Factory 0. We see that this information is accurate with Factory 2's p-value of 0.00084. The regression model also gives us the cost to produce each poduct as displayed by the estimate next to the products name. Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number. 
+
+#### Implement Regression Modeling
+With our CPU's estimated, we will now incorporate them into our product line data set. The aggregated average CPU's will remain inside the data set for comparison of mathematical discrepancies. We will incorporate the regression information by mutating the regression CPU's into our elongated data set, excluding product lines that did not produce anything. We will also include calculations of our factory base costs my mutating in the regression base intercepts by our factory ID's. 
+```{r implement_product_regression_Bea, echo = FALSE}
+ 
+# Assign predicted coefficients of regression model to long format model
+reg_coeffs <- coef(Master_Regression)
+#Clean up the back ticks generated in production line names
+names(reg_coeffs) <- gsub("`","", names(reg_coeffs))
+# Define the base production intercept
+base_intercept <- reg_coeffs["(Intercept)"]
+
+# Implement regression calculated product cost per unit
+weekly_productions_by_productline <- weekly_productions_by_productline %>%
+  mutate(
+    REGRESSION_CPU = ifelse(UNITS_PRODUCED > 0,
+                            reg_coeffs[PRODUCTLINE],
+                            0)
+    )
+
+# add intercepts based on factory id_ factory 0 is base ID
+weekly_productions_by_productline <- weekly_productions_by_productline %>%
+  mutate(
+    REG_FACTORY_BASE_COST = base_intercept + case_when(
+      factory_id == 1 ~ reg_coeffs["factor(factory_id)1"],
+      factory_id == 2 ~ reg_coeffs["factor(factory_id)2"],
+      TRUE            ~ 0 # This handles Factory 0
+    )
+  )
+# add regression product costs
+weekly_productions_by_productline$REG_TTL_PROD_COST_NO_BASE <- weekly_productions_by_productline$REGRESSION_CPU * weekly_productions_by_productline$UNITS_PRODUCED
+
+weekly_productions_by_productline
+```
+#### Convert Weekly to Monthly
+With the accurate regression metrics now implemented, we need to aggregate the weekly data into monthly data. We will create a new data set using the former data set we just created. This data set will aggregate the information of the former data set by month, product line, and factory ID. We will also re implement the regression statistics to avoid compounding calculations that may affect accurate data metrics. This data set will not include products that had zero production. Based on previous data set observations we can note that which factories are exclusive to the products they produce. Lastly, we will implement production metrics based on the implemented regression metrics to give us an idea of the costs to produce each product.
+```{r productline_week_to_month_Bea, echo = FALSE}
+# condense the data by month and product line
+monthly_productions_factory_X_productline <- weekly_productions_by_productline %>%
+  group_by(Month, PRODUCTLINE, factory_id) %>%
   summarise(
-    total_units = sum(total_units),
-    total_cost  = sum(weekly_cost),
+    TOTAL_UNITS_PRODUCED = sum(UNITS_PRODUCED),
     .groups = "drop"
+  ) %>% filter(TOTAL_UNITS_PRODUCED != 0)
+# Implement regression calculated product cost per unit
+monthly_productions_factory_X_productline <- monthly_productions_factory_X_productline %>%
+  mutate(
+    REGRESSION_CPU = ifelse(TOTAL_UNITS_PRODUCED > 0,
+                            reg_coeffs[PRODUCTLINE],
+                            0)
+    )
+
+# add intercepts based on factory id_ factory 0 is base ID
+monthly_productions_factory_X_productline <-monthly_productions_factory_X_productline %>%
+  mutate(
+    REG_FACTORY_BASE_COST = base_intercept + case_when(
+      factory_id == 1 ~ reg_coeffs["factor(factory_id)1"],
+      factory_id == 2 ~ reg_coeffs["factor(factory_id)2"],
+      TRUE            ~ 0 # This handles Factory 0
+    )
+  )
+# add regression product costs without base
+monthly_productions_factory_X_productline$REG_PROD_COST_NO_BASE <-monthly_productions_factory_X_productline$REGRESSION_CPU * monthly_productions_factory_X_productline$TOTAL_UNITS_PRODUCED
+# add regression product costs with base
+monthly_productions_factory_X_productline$AVG_PRODUCTION_COST_W_BASE <- monthly_productions_factory_X_productline$REGRESSION_CPU *
+  monthly_productions_factory_X_productline$TOTAL_UNITS_PRODUCED + 
+  monthly_productions_factory_X_productline$REG_FACTORY_BASE_COST
+
+monthly_productions_factory_X_productline
+
+```
+
+#### Conjoin Sales and Monthly Production by Productline
+We are now in the last steps of building out sales and production data set by product line. To incorporate our sales into this data set we must summarize our sales data by product line and date sold. With the sales data condensed in this format we may conduct a full join between the two data sets. Our aggregated sales data by product line will include min, avg, and max price sold columns due to the variance in which our products were sold by distributors. These segregated values will allow us to determine optimal prices to sell our products for. Below is our aggregated sales data.
+```{r Combine_sales_by_product_Bea, echo = FALSE}
+#Calculate average price by product type- used for product monthly data
+monthly_sales_by_productline <- sales_data %>%
+  group_by(MONTH_ORDERED, PRODUCTLINE) %>%
+  summarise(
+    MIN_PRICE_SOLD = min(PRICEEACH, na.rm = TRUE),
+      AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    MAX_PRICE_SOLD = max(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
+  )
+monthly_sales_by_productline
+```
+Lastly, we will combine the sales data with our factory data. With these two conjoined, we will implement revenue and profit metrics. Our Revenue metrics will range from min, avg, and max revenue based on the summary metrics we gathered regarding our sale prices. This data will give us an idea of our revenue ranges. The same will be done with our profit margins. However, we will implement our actual profit margins based on our total sales and production costs.
+```{r Combine_sales_production_by_product_Bea, echo = FALSE}
+# Implement a Full join of the condensed production data and sales data
+Final_SalesXProduction_Productline <- monthly_productions_factory_X_productline %>%
+  full_join(monthly_sales_by_productline,
+            by = c("Month" = "MONTH_ORDERED","PRODUCTLINE"))
+            
+# Add Average Revenue per product
+Final_SalesXProduction_Productline$MIN_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MIN_PRICE_SOLD
+Final_SalesXProduction_Productline$AVG_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$AVG_PRICE_SOLD
+Final_SalesXProduction_Productline$MAX_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MAX_PRICE_SOLD
+# Add average profit 
+Final_SalesXProduction_Productline$MIN_PROFIT <- Final_SalesXProduction_Productline$MIN_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$AVG_PROFIT <- Final_SalesXProduction_Productline$AVG_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$MAX_PROFIT <- Final_SalesXProduction_Productline$MAX_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$ACTUAL_PROFIT <- Final_SalesXProduction_Productline$TOTAL_SALES - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+
+Final_SalesXProduction_Productline
+```
+This data is now ready for analysis conducting on our product line and further regression modeling.
+
+### Aggregated Monthly Data by Month
+While it is insightful looking at the minute details of our product line. We would also like general information regarding our monthly sales and production without the noise of our product line. We will create an additional data set to conduct analyses on. Used for overview analyses and regression modeling. The overview of the data set construction includes summarizing our productions by month only and implementing regression metrics, summarizing our sales by month only, and conjoining the to with the implementation of revenue and profit metrics.
+
+We first begin this process by grouping our original production data by months. We will also implement summary metric such as total production costs, and total units produced. The grouped data set will also implement our regression metrics indicated by our regression models predicted costs, and calculations of our average CPU's by dividing our predicted monthly costs by our actual production. We will also include the variance between actual and predicted for further comparisons.
+```{r Monthly_refinement_Bea, echo = FALSE}
+# Aggregate the monthly data
+#predicted weekly costs
+production_data$PREDICTED_WEEKLY_COST <- predict(Master_Regression, newdata = production_data)
+
+Summary_Monthly_Data <- production_data %>%
+  group_by(Month) %>%
+  summarise(
+    MONTHLY_PRODUCTION  = sum(TOTAL_UNITS),
+    ACTUAL_MONTHLY_COST = sum(weekly_cost),
+    PRED_MONTHLY_COST   = sum(PREDICTED_WEEKLY_COST),
+    #Actual Cost Per Unit
+    ACTUAL_AVG_CPU      = ACTUAL_MONTHLY_COST / MONTHLY_PRODUCTION,
+    # Predicted Cost Per Unit
+    REGRESSION_AVG_CPU  = PRED_MONTHLY_COST / MONTHLY_PRODUCTION,
+    CPU_VARIANCE        = ACTUAL_AVG_CPU - REGRESSION_AVG_CPU
+  )
+Summary_Monthly_Data
+```
+For our sales implementation, we will create another monthly sales data set. Only grouping the sales data by month as opposed to month and product line. Similarly to the former sales set, we will also include the ranged metrics of our selling prices.
+```{r Monthly_Sales_Refinement_Bea, echo=FALSE}
+#Calculate average price by month - used for monthly data
+Monthly_Sales_Data <- sales_data %>%
+  group_by(MONTH_ORDERED) %>%
+  summarise(
+    MIN_PRICE_SOLD = min(PRICEEACH, na.rm = TRUE),
+    AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    MAX_PRICE_SOLD = max(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
   )
 
+Monthly_Sales_Data
+```
+Lastly, we will combine the two data sets. This combination will be implemented by a full join of both sets. Post join, Revenue ranges will be calculated, and so too will profit ranges. The Profit ranges will also include the Actual profit of our company. Actual profit is calculated by taking our actual sales and subtracting them by our actual monthly costs.
+```{r Monthly_Sales and_Production_Bea, echo = FALSE}
+# FUll join of sales and production
+Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
+  full_join(Monthly_Sales_Data,
+            by = c("Month" = "MONTH_ORDERED"))
+#add Revenue
+Final_SalesXProduction_Month$MIN_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
+Final_SalesXProduction_Month$AVG_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
+Final_SalesXProduction_Month$MAX_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
+
+#add profit
+Final_SalesXProduction_Month$MIN_PROFIT <- Final_SalesXProduction_Month$MIN_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$AVG_PROFIT <- Final_SalesXProduction_Month$AVG_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$MAX_PROFIT <- Final_SalesXProduction_Month$MAX_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$ACTUAL_PROFIT <- Final_SalesXProduction_Month$TOTAL_SALES - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+
+Final_SalesXProduction_Month
 ```
 #### Any Additional Modifications
 Implemented below are any additional modifications or constructions of data implementation used in this project.
@@ -133,14 +331,8 @@ Implemented below are any additional modifications or constructions of data impl
 
 
 ```
+Both data set have been constructed. We may now move into the analysis phase. This phase will include EDA of our profits and productions as well as forecasting using regression modeling and verification. 
 
-A General Overview of the data sets we refined and created.
-```{r data_summary_Bea, echo = FALSE}
-print("Summarized Production Data")
-summary(production_data)
-print("Summarized Monthly Data")
-summary(monthly_data)
-```
 #### Data Assumptions
 Several Assumptions are made for this data cleaning process...
 
@@ -149,7 +341,13 @@ Several Assumptions are made for this data cleaning process...
 - Production and cost values are indicative values of the week they were produced and not a  compounding of former weeks
 - The data represents continuous weekly reporting without major time gaps.
  
-## *Data Statistics*
+## *Exploratory Data Analysis*
+
+## *Forecasting Production*
+
+## *Cost and Profit Analysis*
+
+## *Forecasting Profits*
 
 ## *Project Analysis*
 Walk through your modeling and analytical processes step by step:

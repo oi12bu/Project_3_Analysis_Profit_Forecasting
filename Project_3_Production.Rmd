@@ -14,49 +14,230 @@ library(readr)
 library(lubridate)
 ```
 
-## ---------- Data Refinement ---------------------
-```{r}
+## ---------- Production Data Refinement ---------------------
+```{r production_refinement_Bea}
 # Import data, convert weeks into date datatype
-production_data <- read_csv('weekly_factory_production.csv',
+production_data <- read_csv('CSV/weekly_factory_production.csv',
                             col_types = cols(
                               week = col_date(format = "%Y-%m-%d")))
-
-
 # Are there null vals
 colSums((is.na(production_data)))
 
 # Add month column
-production_data <- production_data %>%
-  group_by(month = format(week, "%B"))
+production_data$MONTH_PRODUCED <- format(production_data$week, "%Y-%m")
 
 # Calculate total production
-production_data$total_units <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes + production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
+production_data$TOTAL_UNITS <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes + production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
 
 # Calculate item production costs
-production_data$`Weekly CPU` <- production_data$weekly_cost / production_data$total_units
-production_data$`Classic Cars CPU` <- ((production_data$`Classic Cars`/production_data$total_units) * production_data$weekly_cost)/production_data$`Classic Cars`
-production_data$`Motorcycles CPU` <- ((production_data$`Motorcycles`/production_data$total_units) * production_data$weekly_cost)/production_data$`Motorcycles`
-production_data$`Planes CPU` <- ((production_data$`Planes`/production_data$total_units) * production_data$weekly_cost)/production_data$`Planes`
-production_data$`Ships CPU` <- ((production_data$`Ships`/production_data$total_units) * production_data$weekly_cost)/production_data$`Ships`
-production_data$`Trucks and Buses CPU` <- ((production_data$`Trucks and Buses`/production_data$total_units) * production_data$weekly_cost)/production_data$`Trucks and Buses`
-production_data$`Vintage Cars CPU` <- ((production_data$`Vintage Cars`/production_data$total_units) * production_data$weekly_cost)/production_data$`Vintage Cars`
+production_data$`AGGREGATE_CPU` <- production_data$weekly_cost / production_data$TOTAL_UNITS
+```
+##-----------Sales Data implementation------------
+```{r}
+# Import sales data, Convert N/A values back to North America, and format date
+sales_data <- read_csv("CSV/sales_data_sample_cleaned.csv")
+sales_data$TERRITORY[is.na(sales_data$TERRITORY)] <- "NA"
+sales_data$ORDERDATE <- mdy(sales_data$ORDERDATE)
 
-# Aggregate the monthly data
-monthly_data <- production_data %>%
-  group_by(factory_id, month) %>%
-  summarise(
-    total_units = sum(total_units),
-    total_cost  = sum(weekly_cost),
-    .groups = "drop"
-  )
+# Create a Month_Ordered Column containing the month and year combined
+sales_data$MONTH_ORDERED <- format(sales_data$ORDERDATE, "%Y-%m")
+```
 
 
-
-summary(production_data)
-glimpse(production_data)
-  
+## ---------------Regression Model for Productline Prices----------------
+We would like to determine the actual cost per unit not based on aggregated data. 
+A multiple linear regression model will assist in the isolation of each product cost under consideration that labor, cost of electricity, etc are consistent.
+```{r product_regression_Bea}
+regression_products <- lm(data = production_data, weekly_cost ~ `Classic Cars` + Motorcycles +
+                            Planes + Ships + `Trucks and Buses` + `Vintage Cars`)
+summary(regression_products)
+```
+Testing the models by factory
+```{r production_by_factory_Bea}
+F0_Production <- production_data %>% filter(factory_id == "0")
+F1_Production <- production_data %>% filter(factory_id == "1")
+F2_Production <- production_data %>% filter(factory_id == "2")
 
 ```
+```{r factory_regression_bea}
+f0_regression <- lm(data = F0_Production, weekly_cost ~ `Classic Cars` + Ships)
+summary(f0_regression)
+
+f1_regression <- lm(data = F1_Production,weekly_cost ~  Motorcycles +`Trucks and Buses`)
+summary(f1_regression)
+
+f2_regression <- lm(data = F2_Production,weekly_cost ~ Planes+`Vintage Cars`)
+summary(f2_regression)
+
+#include the factory for the regression
+Master_Regression <- lm(weekly_cost ~ `Classic Cars` + Motorcycles + Planes + Ships + 
+                  `Trucks and Buses` + `Vintage Cars` + factor(factory_id) + outlier, 
+                  data = production_data)
+summary(Master_Regression)
+
+```
+## -----------Convert dataset into long format---------------------
+```{r production_long_format_Bea}
+# Crate a long format of production data
+weekly_productions_by_productline <- production_data %>% 
+  group_by(MONTH_PRODUCED) %>%
+  pivot_longer(
+    cols = c(`Classic Cars`,Motorcycles, Planes, Ships, `Trucks and Buses`, `Vintage Cars`),
+    names_to = "PRODUCTLINE",
+    values_to = "UNITS_PRODUCED"
+  )
+# Calculate product costs
+weekly_productions_by_productline$AGG_PRODUCT_COSTS <- weekly_productions_by_productline$`AGGREGATE_CPU`* weekly_productions_by_productline$UNITS_PRODUCED
+ 
+# Assign predicted coefficients of regression model to long format model
+reg_coeffs <- coef(Master_Regression)
+#Clean up the back ticks generated in production line names
+names(reg_coeffs) <- gsub("`","", names(reg_coeffs))
+# Define the base production intercept
+base_intercept <- reg_coeffs["(Intercept)"]
+
+# Implement regression calculated product cost per unit
+weekly_productions_by_productline <- weekly_productions_by_productline %>%
+  mutate(
+    REGRESSION_CPU = ifelse(UNITS_PRODUCED > 0,
+                            reg_coeffs[PRODUCTLINE],
+                            0)
+    )
+
+# add intercepts based on factory id_ factory 0 is base ID
+weekly_productions_by_productline <- weekly_productions_by_productline %>%
+  mutate(
+    REG_FACTORY_BASE_COST = base_intercept + case_when(
+      factory_id == 1 ~ reg_coeffs["factor(factory_id)1"],
+      factory_id == 2 ~ reg_coeffs["factor(factory_id)2"],
+      TRUE            ~ 0 # This handles Factory 0
+    )
+  )
+# add regression product costs
+weekly_productions_by_productline$REG_TTL_PROD_COST_NO_BASE <-weekly_productions_by_productline$REGRESSION_CPU * weekly_productions_by_productline$UNITS_PRODUCED
+```
+
+## -------------Summarize weekly production into Monthly-------------------------
+Condense the data set into a monthly data set instead of a weekly dataset. Implement regression model information into the dataset
+```{r condensed_regression_data_Bea}
+# condense the data by month and product line
+monthly_productions_factory_X_productline <- weekly_productions_by_productline %>%
+  group_by(MONTH_PRODUCED, PRODUCTLINE, factory_id) %>%
+  summarise(
+    TOTAL_UNITS_PRODUCED = sum(UNITS_PRODUCED),
+    .groups = "drop"
+  ) %>% filter(TOTAL_UNITS_PRODUCED != 0)
+# Implement regression calculated product cost per unit
+monthly_productions_factory_X_productline <- monthly_productions_factory_X_productline %>%
+  mutate(
+    REGRESSION_CPU = ifelse(TOTAL_UNITS_PRODUCED > 0,
+                            reg_coeffs[PRODUCTLINE],
+                            0)
+    )
+
+# add intercepts based on factory id_ factory 0 is base ID
+monthly_productions_factory_X_productline <-monthly_productions_factory_X_productline %>%
+  mutate(
+    REG_FACTORY_BASE_COST = base_intercept + case_when(
+      factory_id == 1 ~ reg_coeffs["factor(factory_id)1"],
+      factory_id == 2 ~ reg_coeffs["factor(factory_id)2"],
+      TRUE            ~ 0 # This handles Factory 0
+    )
+  )
+# add regression product costs without base
+monthly_productions_factory_X_productline$REG_PROD_COST_NO_BASE <-monthly_productions_factory_X_productline$REGRESSION_CPU * monthly_productions_factory_X_productline$TOTAL_UNITS_PRODUCED
+# add regression product costs with base
+monthly_productions_factory_X_productline$AVG_PRODUCTION_COST_W_BASE <- monthly_productions_factory_X_productline$REGRESSION_CPU *
+  monthly_productions_factory_X_productline$TOTAL_UNITS_PRODUCED + 
+  monthly_productions_factory_X_productline$REG_FACTORY_BASE_COST
+
+```
+
+#----------AGGREGATE MONTLHY DATA-----------
+Note: Regression monthly calculations could be refined more
+```{r Monthly_refinement_Bea}
+# Aggregate the monthly data
+#predicted weekly costs
+production_data$PREDICTED_WEEKLY_COST <- predict(Master_Regression, newdata = production_data)
+
+Summary_Monthly_Data <- production_data %>%
+  group_by(MONTH_PRODUCED) %>%
+  summarise(
+    MONTHLY_PRODUCTION  = sum(TOTAL_UNITS),
+    ACTUAL_MONTHLY_COST = sum(weekly_cost),
+    PRED_MONTHLY_COST   = sum(PREDICTED_WEEKLY_COST),
+    #Actual Cost Per Unit
+    ACTUAL_AVG_CPU      = ACTUAL_MONTHLY_COST / MONTHLY_PRODUCTION,
+    # Predicted Cost Per Unit
+    REGRESSION_AVG_CPU  = PRED_MONTHLY_COST / MONTHLY_PRODUCTION,
+    CPU_VARIANCE        = ACTUAL_AVG_CPU - REGRESSION_AVG_CPU
+  )
+
+#Calculate average price by month - used for monthly data
+Monthly_Sales_Data <- sales_data %>%
+  group_by(MONTH_ORDERED) %>%
+  summarise(
+    MIN_PRICE_SOLD = min(PRICEEACH, na.rm = TRUE),
+    AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    MAX_PRICE_SOLD = max(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
+  )
+
+# FUll join of sales and production
+Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
+  full_join(Monthly_Sales_Data,
+            by = c("MONTH_PRODUCED" = "MONTH_ORDERED"))
+#add Revenue
+Final_SalesXProduction_Month$MIN_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
+Final_SalesXProduction_Month$AVG_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
+Final_SalesXProduction_Month$MAX_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
+
+#add profit
+Final_SalesXProduction_Month$MIN_PROFIT <- Final_SalesXProduction_Month$MIN_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$AVG_PROFIT <- Final_SalesXProduction_Month$AVG_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$MAX_PROFIT <- Final_SalesXProduction_Month$MAX_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$ACTUAL_PROFIT <- Final_SalesXProduction_Month$TOTAL_SALES - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+```
+
+## ---------- Combine Sales and Production by Product ---------------------
+```{r Combine_sales_production_by_product_Bea}
+#Calculate average price by product type- used for product monthly data
+monthly_sales_by_productline <- sales_data %>%
+  group_by(MONTH_ORDERED, PRODUCTLINE) %>%
+  summarise(
+    MIN_PRICE_SOLD = min(PRICEEACH, na.rm = TRUE),
+      AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    MAX_PRICE_SOLD = max(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
+  )
+
+# Implement a Full join of the condensed production data and sales data
+Final_SalesXProduction_Productline <- monthly_productions_factory_X_productline %>%
+  full_join(monthly_sales_by_productline,
+            by = c("MONTH_PRODUCED" = "MONTH_ORDERED","PRODUCTLINE"))
+            
+# Add Average Revenue per product
+Final_SalesXProduction_Productline$MIN_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MIN_PRICE_SOLD
+Final_SalesXProduction_Productline$AVG_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$AVG_PRICE_SOLD
+Final_SalesXProduction_Productline$MAX_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MAX_PRICE_SOLD
+# Add average profit 
+Final_SalesXProduction_Productline$MIN_PROFIT <- Final_SalesXProduction_Productline$MIN_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$AVG_PROFIT <- Final_SalesXProduction_Productline$AVG_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$MAX_PROFIT <- Final_SalesXProduction_Productline$MAX_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$ACTUAL_PROFIT <- Final_SalesXProduction_Productline$TOTAL_SALES - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+
+```
+## ----------Export the Datasets for Visualizing-----------
+```r
+write_csv(Final_SalesXProduction_Productline, file.choose(new = TRUE))
+write_csv(Final_SalesXProduction_Month, file.choose(new = TRUE))
+```
+
+
 
 
 ## ---------- Bea's Production ---------------------
