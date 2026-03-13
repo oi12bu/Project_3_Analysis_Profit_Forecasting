@@ -60,6 +60,8 @@ install.packages("lubridate")  # Used for weekday conversion
 library(readr)
 library(tidyverse)
 library(lubridate)
+library(car)
+library(MASS)
 ```
 
 #### Import Data Files
@@ -114,14 +116,23 @@ production_data$Month <- format(production_data$week, "%Y-%m")
 # Create a Month_Ordered Column containing the month and year combined. Will be used for future aggregations
 sales_data$MONTH_ORDERED <- format(sales_data$ORDERDATE, "%Y-%m")
 
-# Production counts by item types are available, but total production counts are. 
-# Calculate total production counts
+# Rename all columns to exclude spaces
+production_data <- production_data %>%
+  rename(
+     "Classic_Cars" = `Classic Cars`,
+     "Trucks_and_Buses" = `Trucks and Buses`,
+     "Vintage_Cars" = `Vintage Cars` 
+  )
+
 # Calculate total production
-production_data$TOTAL_UNITS <- production_data$`Classic Cars` + production_data$Motorcycles + production_data$Planes +
-  production_data$Ships + production_data$`Trucks and Buses`+production_data$`Vintage Cars`
+production_data$TOTAL_UNITS <- production_data$Classic_Cars + production_data$Motorcycles + production_data$Planes +
+  production_data$Ships + production_data$Trucks_and_Buses + production_data$Vintage_Cars
 
 # We need to know the rough cost to produce individual products. Calculate the Cost Per Unit (CPU) by dividing the total sales by the total units.
 production_data$`AGGREGATE_CPU` <- production_data$weekly_cost / production_data$TOTAL_UNITS
+
+# The outlier column indicates sections of weekly cost data that deviates from the norm. Create a flag column with 1 indicating that the row has outlieing data
+production_data$outlier_flag <- if_else(production_data$outlier > 0, 1, 0)
 
 ```
 ### Aggregation by Productline
@@ -133,7 +144,7 @@ For clarity regarding our individual products, we must convert our data into a l
 weekly_productions_by_productline <- production_data %>% 
   group_by(Month) %>%
   pivot_longer(
-    cols = c(`Classic Cars`,Motorcycles, Planes, Ships, `Trucks and Buses`, `Vintage Cars`),
+    cols = c(Classic_Cars,Motorcycles, Planes, Ships, Trucks_and_Buses, Vintage_Cars),
     names_to = "PRODUCTLINE",
     values_to = "UNITS_PRODUCED"
   )
@@ -145,16 +156,25 @@ weekly_productions_by_productline
 #### Productline Regression Modeling
 Some issues that arise with the implementation of aggregated costs per unit and calculated productions based on the CPU calculations are the inaccuracies of the calculated metrics. This form of calculation leads to over generalization of the data, and can include compounded floating point errors over time. The best and most accurate solution to calculate accurate CPU's per product line is by conducting a multiple regression analysis on our product line costs.
 
-Listed below is the final conduction of the multiple regression analysis. The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy. An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory. However, this led to less accurate regression results with 61%-68% accuracy rates. The final determination was to run the multiple regression analysis with all of the products, the factory id's, and our outlier data. The resulting regression model lead to a 90% accuracy rating.
+Listed below is the final conduction of the multiple regression analysis. The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy. An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory. However, this led to less accurate regression results with 61%-68% accuracy rates. We also note that there resides an "outlier" column within our data set. This column lets us know how far the weekly costs have deviated from our standard weekly costs. To account for the outliers, we will use a flag column to indicate where the outlier data resides. The outlying data will then be used as weights in our linear model to account for items that may be skewing the data.  A Linear model will be used in our calculations with outliers as weights to downwight any extreme observations, giving us more stable cost estimates.   
 ```{r productline_regression_bea, echo = FALSE}
 # Include the factory and outliers for the regression
-Master_Regression <- lm(weekly_cost ~ `Classic Cars` + Motorcycles + Planes + Ships + 
-                  `Trucks and Buses` + `Vintage Cars` + factor(factory_id) + outlier, 
-                  data = production_data)
+
+Master_Regression <- lm(weekly_cost ~ Classic_Cars + Motorcycles + Planes + Ships + 
+                  Trucks_and_Buses + Vintage_Cars + factor(factory_id), 
+                  data = production_data,
+                  weights = if_else(production_data$outlier == 0, 1, 0))
 summary(Master_Regression)
+par(mfrow=c(2,2))
+plot(Master_Regression)
+par(mfrow=c(1,1))
 ```
-This regression analysis tells us that our baseline data intercept resides from Factory 0 data calculations. Meaning that our base costs, electricity, labor, etc., are 322 dollars at Factory 0.
-We see that Factory 1 operates at a a cheaper base cost by 62 dollars. However, it should be noted that this data has a p-value of 0.48 indicating that there is little statistical significance that this value is accurate. Contrary to Factory 1, Factory 2 operates at a more expensive cost of 315 dollars more than Factory 0. We see that this information is accurate with Factory 2's p-value of 0.00084. The regression model also gives us the cost to produce each poduct as displayed by the estimate next to the products name. Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number. 
+
+The final determination was to run the multiple regression analysis with all of the products, the factory id's, and our outlier data. The resulting regression model lead to a 92% accuracy rating.
+Our residuals model shows clusters of dots near the 0 line. Showing that the majority of our estimated data has a close fit accuracy. There are large outliers in the data but our model accounted for that. The Q-Q residuals show that a majority of our predicted costs are predicted perfectly with a pattern. However, we have a heavy tail resulted from our outlier data. The Scale-Location presents a relatively flat line with relatively consistent distribution of data. This means that our predicted costs have been balanced successfully. The residuals vs leverage chart displays a few points that deviate far from the red line, but our data doesn't exceed Cook's distance. Therefore, we dont have data points that break the accuracy of our cost estimates, and its safe to use the calculated regression data.   
+
+This regression analysis tells us that our baseline data intercept resides from Factory 0 data calculations. Meaning that our base costs, electricity, labor, etc., are $448 at Factory 0.
+We see that Factory 1 operates at a a cheaper base cost by $191. However, it should be noted that this data has a p-value of 0.48 indicating that there is little statistical significance that this value is accurate. Contrary to Factory 1, Factory 2 operates at a more expensive cost of 98 dollars more than Factory 0. We see that this information is accurate with Factory 0 and 1 with p-value < 0.05. The regression model also gives us the cost to produce each product as displayed by the estimate next to the products name. Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number. 
 
 #### Implement Regression Modeling
 With our CPU's estimated, we will now incorporate them into our product line data set. The aggregated average CPU's will remain inside the data set for comparison of mathematical discrepancies. We will incorporate the regression information by mutating the regression CPU's into our elongated data set, excluding product lines that did not produce anything. We will also include calculations of our factory base costs my mutating in the regression base intercepts by our factory ID's. 
@@ -249,16 +269,20 @@ Lastly, we will combine the sales data with our factory data. With these two con
 Final_SalesXProduction_Productline <- monthly_productions_factory_X_productline %>%
   full_join(monthly_sales_by_productline,
             by = c("Month" = "MONTH_ORDERED","PRODUCTLINE"))
+# Calculate profits per product
+Final_SalesXProduction_Productline$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$MIN_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
+Final_SalesXProduction_Productline$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$AVG_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
+Final_SalesXProduction_Productline$Max_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$MAX_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
             
 # Add Average Revenue per product
-Final_SalesXProduction_Productline$MIN_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MIN_PRICE_SOLD
-Final_SalesXProduction_Productline$AVG_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$AVG_PRICE_SOLD
-Final_SalesXProduction_Productline$MAX_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MAX_PRICE_SOLD
+Final_SalesXProduction_Productline$MIN_TOTAL_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MIN_PRICE_SOLD
+Final_SalesXProduction_Productline$AVG_TOTAL_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$AVG_PRICE_SOLD
+Final_SalesXProduction_Productline$MAX_TOTAL_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MAX_PRICE_SOLD
 # Add average profit 
-Final_SalesXProduction_Productline$MIN_PROFIT <- Final_SalesXProduction_Productline$MIN_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
-Final_SalesXProduction_Productline$AVG_PROFIT <- Final_SalesXProduction_Productline$AVG_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
-Final_SalesXProduction_Productline$MAX_PROFIT <- Final_SalesXProduction_Productline$MAX_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
-Final_SalesXProduction_Productline$ACTUAL_PROFIT <- Final_SalesXProduction_Productline$TOTAL_SALES - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$MIN_TOTAL_PROFIT <- Final_SalesXProduction_Productline$MIN_TOTAL_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$AVG_TOTAL_PROFIT <- Final_SalesXProduction_Productline$AVG_TOTAL_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$MAX_TOTAL_PROFIT <- Final_SalesXProduction_Productline$MAX_TOTAL_REVENUE - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
+Final_SalesXProduction_Productline$ACTUAL_TOTAL_PROFIT <- Final_SalesXProduction_Productline$TOTAL_SALES - Final_SalesXProduction_Productline$AVG_PRODUCTION_COST_W_BASE
 
 Final_SalesXProduction_Productline
 ```
@@ -309,16 +333,22 @@ Lastly, we will combine the two data sets. This combination will be implemented 
 Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
   full_join(Monthly_Sales_Data,
             by = c("Month" = "MONTH_ORDERED"))
+
+# Calculate profits per product
+Final_SalesXProduction_Month$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MIN_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+Final_SalesXProduction_Month$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Month$AVG_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+Final_SalesXProduction_Month$Max_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MAX_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+
 #add Revenue
-Final_SalesXProduction_Month$MIN_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
-Final_SalesXProduction_Month$AVG_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
-Final_SalesXProduction_Month$MAX_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
+Final_SalesXProduction_Month$MIN_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
+Final_SalesXProduction_Month$AVG_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
+Final_SalesXProduction_Month$MAX_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
 
 #add profit
-Final_SalesXProduction_Month$MIN_PROFIT <- Final_SalesXProduction_Month$MIN_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
-Final_SalesXProduction_Month$AVG_PROFIT <- Final_SalesXProduction_Month$AVG_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
-Final_SalesXProduction_Month$MAX_PROFIT <- Final_SalesXProduction_Month$MAX_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
-Final_SalesXProduction_Month$ACTUAL_PROFIT <- Final_SalesXProduction_Month$TOTAL_SALES - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$MIN_TOTAL_PROFIT <- Final_SalesXProduction_Month$MIN_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$AVG_TOTAL_PROFIT <- Final_SalesXProduction_Month$AVG_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$MAX_TOTAL_PROFIT <- Final_SalesXProduction_Month$MAX_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$ACTUAL_TOTAL_PROFIT <- Final_SalesXProduction_Month$TOTAL_SALES - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
 
 Final_SalesXProduction_Month
 ```
