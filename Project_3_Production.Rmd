@@ -12,6 +12,8 @@ This notebook will entail all team members work including data refinement, forec
 library(tidyverse)
 library(readr)
 library(lubridate)
+library(forecast)
+library(tseries)
 ```
 
 ## ---------- Production Data Refinement ---------------------
@@ -34,6 +36,7 @@ production_data <- production_data %>%
      "Vintage_Cars" = `Vintage Cars` 
   )
 
+
 # The outlier column indicates sections of weekly cost data that deviates from the norm. Create a flag column with 1 indicating that the row has outlieing data
 production_data$outlier_flag <- if_else(production_data$outlier > 0, 1, 0)
 
@@ -52,6 +55,10 @@ sales_data$ORDERDATE <- mdy(sales_data$ORDERDATE)
 
 # Create a Month_Ordered Column containing the month and year combined
 sales_data$MONTH_ORDERED <- format(sales_data$ORDERDATE, "%Y-%m")
+
+sales_data <- sales_data %>%
+  mutate(PRODUCTLINE = gsub(" ", "_", PRODUCTLINE))
+
 ```
 
 
@@ -93,6 +100,15 @@ par(mfrow=c(1,1))
 ## -----------Convert dataset into long format---------------------
 ```{r production_long_format_Bea}
 # Crate a long format of production data
+weekly_productions_by_productline <- production_data %>% 
+  group_by(MONTH_PRODUCED) %>%
+  pivot_longer(
+    cols = c(Classic_Cars,Motorcycles, Planes, Ships, Trucks_and_Buses, Vintage_Cars),
+    names_to = "PRODUCTLINE",
+    values_to = "UNITS_PRODUCED"
+  )
+# Calculate product costs
+weekly_productions_by_productline$AGG_PRODUCT_COSTS <- weekly_productions_by_productline$`AGGREGATE_CPU`* weekly_productions_by_productline$UNITS_PRODUCED
  
 # Assign predicted coefficients of regression model to long format model
 reg_coeffs <- coef(Master_Regression)
@@ -104,7 +120,7 @@ base_intercept <- reg_coeffs["(Intercept)"]
 # Implement regression calculated product cost per unit
 weekly_productions_by_productline <- weekly_productions_by_productline %>%
   mutate(
-    REGRESSION_CPU = ifelse(UNITS_PRODUCED > 0,
+    REGRESSION_CPU = ifelse(TOTAL_UNITS > 0,
                             reg_coeffs[PRODUCTLINE],
                             0)
     )
@@ -129,7 +145,7 @@ Condense the data set into a monthly data set instead of a weekly dataset. Imple
 ```{r condensed_regression_data_Bea}
 # condense the data by month and product line
 monthly_productions_factory_X_productline <- weekly_productions_by_productline %>%
-  group_by(Month, PRODUCTLINE, factory_id) %>%
+  group_by(MONTH_PRODUCED, PRODUCTLINE, factory_id) %>%
   summarise(
     TOTAL_UNITS_PRODUCED = sum(UNITS_PRODUCED),
     .groups = "drop"
@@ -180,7 +196,7 @@ monthly_sales_by_productline
 
 Final_SalesXProduction_Productline <- monthly_productions_factory_X_productline %>%
   full_join(monthly_sales_by_productline,
-            by = c("Month" = "MONTH_ORDERED","PRODUCTLINE"))
+            by = c("MONTH_PRODUCED" = "MONTH_ORDERED","PRODUCTLINE"))
 # Calculate profits per product
 Final_SalesXProduction_Productline$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$MIN_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
 Final_SalesXProduction_Productline$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$AVG_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
@@ -198,6 +214,57 @@ Final_SalesXProduction_Productline$ACTUAL_TOTAL_PROFIT <- Final_SalesXProduction
 
 Final_SalesXProduction_Productline
 ```
+Aggregate monthly sales no product line
+```{r}
+#predicted weekly costs
+production_data$PREDICTED_WEEKLY_COST <- predict(Master_Regression, newdata = production_data)
+
+Summary_Monthly_Data <- production_data %>%
+  group_by(MONTH_PRODUCED) %>%
+  summarise(
+    MONTHLY_PRODUCTION  = sum(TOTAL_UNITS),
+    ACTUAL_MONTHLY_COST = sum(weekly_cost),
+    PRED_MONTHLY_COST   = sum(PREDICTED_WEEKLY_COST),
+    #Actual Cost Per Unit
+    ACTUAL_AVG_CPU      = ACTUAL_MONTHLY_COST / MONTHLY_PRODUCTION,
+    # Predicted Cost Per Unit
+    REGRESSION_AVG_CPU  = PRED_MONTHLY_COST / MONTHLY_PRODUCTION,
+    CPU_VARIANCE        = ACTUAL_AVG_CPU - REGRESSION_AVG_CPU
+  )
+#Calculate average price by month - used for monthly data
+Monthly_Sales_Data <- sales_data %>%
+  group_by(MONTH_ORDERED) %>%
+  summarise(
+    MIN_PRICE_SOLD = min(PRICEEACH, na.rm = TRUE),
+    AVG_PRICE_SOLD = mean(PRICEEACH, na.rm = TRUE),
+    MAX_PRICE_SOLD = max(PRICEEACH, na.rm = TRUE),
+    AVG_SHIPPED_PER_ORDER = mean(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SHIPPED = sum(QUANTITYORDERED, na.rm = TRUE),
+    TOTAL_SALES = sum(SALES)
+  )
+# FUll join of sales and production
+Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
+  full_join(Monthly_Sales_Data,
+            by = c("MONTH_PRODUCED" = "MONTH_ORDERED"))
+# Ensure Dates are date data types
+Final_SalesXProduction_Productline$Month <- ym(Final_SalesXProduction_Productline$MONTH_PRODUCED)
+
+# Calculate profits per product
+Final_SalesXProduction_Month$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MIN_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+Final_SalesXProduction_Month$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Month$AVG_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+Final_SalesXProduction_Month$Max_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MAX_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+
+#add Revenue
+Final_SalesXProduction_Month$MIN_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
+Final_SalesXProduction_Month$AVG_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
+Final_SalesXProduction_Month$MAX_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
+
+#add profit
+Final_SalesXProduction_Month$MIN_TOTAL_PROFIT <- Final_SalesXProduction_Month$MIN_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$AVG_TOTAL_PROFIT <- Final_SalesXProduction_Month$AVG_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$MAX_TOTAL_PROFIT <- Final_SalesXProduction_Month$MAX_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+Final_SalesXProduction_Month$ACTUAL_TOTAL_PROFIT <- Final_SalesXProduction_Month$TOTAL_SALES - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
+```
 
 ## ----------Export the Datasets for Visualizing-----------
 ```r
@@ -209,7 +276,130 @@ write_csv(Final_SalesXProduction_Month, file.choose(new = TRUE))
 
 
 ## ---------- Bea's Production ---------------------
+Forcast expected productline sales from june 2005 - December 2005
+```{r}
 
+# Group the data by date and product for time series
+monthly_data <- sales_data %>%
+  group_by(MONTH_ORDERED, PRODUCTLINE) %>%
+  summarise(TOTAL_UNITS = sum(QUANTITYORDERED),
+            .groups = "drop") %>%
+   arrange(PRODUCTLINE, MONTH_ORDERED)
+
+monthly_data$MONTH_ORDERED <- ym(monthly_data$MONTH_ORDERED)
+  
+#--------------Determine Which method to use per production line------------
+production_model <- function(product_line) {
+  # Create a productline time table
+  submodel <- monthly_data %>%
+    filter(PRODUCTLINE == product_line) %>%
+    arrange(MONTH_ORDERED)
+  
+  # Build Time Series object
+  ts_submodel <-ts(submodel$TOTAL_UNITS,
+                   start = c(year(min(submodel$MONTH_ORDERED)),
+                             month(min(submodel$MONTH_ORDERED))),
+                   frequency = 12)
+  last_date <- max(submodel$MONTH_ORDERED)
+  target_end <- as.Date("2005-12-31")
+  h <- interval(last_date, target_end) %/% months(1)
+  
+  mean_model <- meanf(ts_submodel, h = h)
+  snaive_model <- snaive(ts_submodel, h = h)
+  rwf_model <- rwf(ts_submodel, h = h, drift = TRUE)
+  
+  ets_ann <- ets(ts_submodel, model = "ANN")
+  forecast_ets_ann <- forecast(ets_ann, h = h)
+  
+  ets_aaa <- ets(ts_submodel, model = "AAA")
+  forecast_ets_aaa <- forecast(ets_aaa, h = h)
+  
+  ets_auto <- ets(ts_submodel)
+  forecast_ets_auto <- forecast(ets_auto, h = h)
+  
+  arima_auto <- auto.arima(ts_submodel)
+  forecast_arima <- forecast(arima_auto, h = h)
+  
+  lm_model <- tslm(ts_submodel ~ trend + season)
+  forecast_lm <- forecast(lm_model, h = h)
+  
+  # STL needs 2 full years - safely skip if not enough data
+  stl_forecast <- tryCatch(
+    stlf(ts_submodel, h = h),
+    error = function(e) NULL
+  )
+  
+  accuracy_table <- list(
+    Mean = accuracy(mean_model)[1,],
+    Seasonal_Naive = accuracy(snaive_model)[1,],
+    Random_Walk_Drift = accuracy(rwf_model)[1,],
+    ETS_ANN = accuracy(forecast_ets_ann)[1,],
+    ETS_AAA = accuracy(forecast_ets_aaa)[1,],
+    ETS_Auto = accuracy(forecast_ets_auto)[1,],
+    ARIMA = accuracy(forecast_arima)[1,],
+    Linear_Regression = accuracy(forecast_lm)[1,]
+  )
+  if (!is.null(stl_forecast)) {
+    accuracy_table$STL <- accuracy(stl_forecast)[1,]
+  }
+  
+  accuracy_table <- round(do.call(rbind, accuracy_table), 2)
+  cat("\n===", product_line, "===\n")
+  print(accuracy_table)
+  
+}
+
+#Run all forecasts
+product_lines <- unique(monthly_data$PRODUCTLINE)
+results <- map(product_lines, production_model)
+results <- results[!sapply(results, is.null)]
+```
+#### Orders per product line Time series
+```{r}
+forecast_production <- function(product_line) {
+  submodel <- monthly_data %>%
+    filter(PRODUCTLINE == product_line) %>%
+    arrange(MONTH_ORDERED) %>%
+    # Fill in missing order points with 0's
+    tidyr::complete(
+      MONTH_ORDERED = seq.Date(min(MONTH_ORDERED), max(MONTH_ORDERED), by = "month"),
+      fill = list(TOTAL_UNITS = 0)
+    )
+  
+  ts_submodel <- ts(submodel$TOTAL_UNITS,
+                 start = c(year(min(submodel$MONTH_ORDERED)),
+                           month(min(submodel$MONTH_ORDERED))),
+                 frequency = 12)
+  # Calculate Time series ranges
+  last_date <- max(submodel$MONTH_ORDERED)
+  target_end <- as.Date("2005-12-31")
+  h <- interval(last_date, target_end) %/% months(1)
+  
+  # Use different series depending num months in dataset
+  if (length(ts_submodel) < 24){
+    ts_forecast <- forecast(tslm(ts_submodel ~ trend + season), h = h) 
+  } else{
+    stl_model <- stl(ts_submodel, s.window = "periodic")
+    ts_forecast <- forecast(stl_model, h=h)
+  }
+  # Display forecasting data
+  cat("\n===", product_line, "===\n")
+  print(ts_forecast)
+  
+  #plot the forecast
+  autoplot(ts_forecast) +
+    ggtitle(paste(product_line, "Orders Forecast"))
+  
+}
+
+#Run all forecasts
+product_lines <- unique(monthly_data$PRODUCTLINE)
+#Map the products to the function
+results <- map(product_lines, forecast_production)
+# Omit null values
+results <- results[!sapply(results, is.null)]
+print(results)
+```
 
 ## ---------- Eltons's Production ---------------------
 
