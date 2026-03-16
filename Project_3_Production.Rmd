@@ -10,7 +10,7 @@ This notebook will entail all team members work including data refinement, forec
 ## ---------- Import Libraries ---------------------
 ```{r}
 library(tidyverse)
-library(readr)
+library(readr)       # Both readr and lubridate should be included already when installing tidyverse
 library(lubridate)
 ```
 
@@ -70,6 +70,7 @@ F1_Production <- production_data %>% filter(factory_id == "1")
 F2_Production <- production_data %>% filter(factory_id == "2")
 
 ```
+
 ```{r factory_regression_bea}
 f0_regression <- lm(data = F0_Production, weekly_cost ~ Classic_Cars + Ships)
 summary(f0_regression)
@@ -200,7 +201,7 @@ Final_SalesXProduction_Productline
 ```
 
 ## ----------Export the Datasets for Visualizing-----------
-```r
+```{r}
 write_csv(Final_SalesXProduction_Productline, file.choose(new = TRUE))
 write_csv(Final_SalesXProduction_Month, file.choose(new = TRUE))
 ```
