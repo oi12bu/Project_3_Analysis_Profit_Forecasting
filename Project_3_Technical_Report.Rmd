@@ -62,6 +62,9 @@ library(tidyverse)
 library(lubridate)
 library(car)
 library(MASS)
+library(ggplot2)
+library(dplyr)
+library(forecast)
 ```
 
 #### Import Data Files
@@ -123,6 +126,10 @@ production_data <- production_data %>%
      "Trucks_and_Buses" = `Trucks and Buses`,
      "Vintage_Cars" = `Vintage Cars` 
   )
+
+sales_data <- sales_data %>%
+  mutate(PRODUCTLINE = gsub(" ", "_", PRODUCTLINE))
+
 
 # Calculate total production
 production_data$TOTAL_UNITS <- production_data$Classic_Cars + production_data$Motorcycles + production_data$Planes +
@@ -333,6 +340,8 @@ Lastly, we will combine the two data sets. This combination will be implemented 
 Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
   full_join(Monthly_Sales_Data,
             by = c("Month" = "MONTH_ORDERED"))
+# Ensure Dates are date data types
+Final_SalesXProduction_Productline$Month <- ym(Final_SalesXProduction_Productline$Month)
 
 # Calculate profits per product
 Final_SalesXProduction_Month$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MIN_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
@@ -357,11 +366,9 @@ Implemented below are any additional modifications or constructions of data impl
 ```{r}
 
 
-
-
-
 ```
-Both data set have been constructed. We may now move into the analysis phase. This phase will include EDA of our profits and productions as well as forecasting using regression modeling and verification. 
+
+Both data sets have been constructed. We may now move into the analysis phase. This phase will include EDA of our profits and productions as well as forecasting using regression modeling and verification. 
 
 #### Data Assumptions
 Several Assumptions are made for this data cleaning process...
@@ -370,10 +377,180 @@ Several Assumptions are made for this data cleaning process...
 - Missing values represent incomplete reporting rather than zero production.
 - Production and cost values are indicative values of the week they were produced and not a  compounding of former weeks
 - The data represents continuous weekly reporting without major time gaps.
+- All data presented is the only data available to us.
  
 ## *Exploratory Data Analysis*
 
 ## *Forecasting Production*
+As a note, our production data doesn't contain data regarding train production. Therefore, we will not be forecasting or analyzing trains for this section.   
+
+We have the accumulated data of our monthly productions. Based on our production history we would like to anticipate what our future production will look like. Bea will conduct an observation on our current production for trends or seasonality. This analysis will be conducted via STL decomposition to visualize trend lines and seasonality, and ploting our production timeline. 
+```{r plot_production_Bea, echo = FALSE}
+# Ingore NA values from trains
+clean_data <- Final_SalesXProduction_Productline %>%
+  drop_na(Month, TOTAL_UNITS_PRODUCED)
+
+ggplot(clean_data,
+       aes(x = Month, y = TOTAL_UNITS_PRODUCED)) +
+  geom_line() +
+  geom_smooth(se = FALSE)+
+  facet_wrap(~PRODUCTLINE) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(x = "Year", y = "Total Units Produced")+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r observe_production_Bea, echo = FALSE}
+production_model <- function(product_line) {
+  # Create a productline time table
+  submodel <- Final_SalesXProduction_Productline %>%
+    filter(PRODUCTLINE == product_line) %>%
+    arrange(Month)
+  
+  # Build Time Series object
+  ts_submodel <-ts(submodel$TOTAL_UNITS_PRODUCED,
+                   start = c(year(min(submodel$Month)),
+                             month(min(submodel$Month))),
+                   frequency = 12)
+  
+  fit <- stl(ts_submodel, s.window = "period")
+  autoplot(fit)+
+  ggtitle(paste("STL Decomposition —", product_line))
+}
+#Run all forecasts
+product_lines <- unique(Final_SalesXProduction_Productline$PRODUCTLINE)
+product_lines <- product_lines[product_lines != "Trains"]
+results <- map(product_lines, production_model)
+results <- results[!sapply(results, is.null)]
+results
+
+```
+These are our observations of each production line...   
+
+* Classic Cars: Declining then stabilizing trend, Weak indications of seasonality. Remainder is noisy, suggestion irregular productions. Suggesting ARIMA
+* Motorcycles: Non linear,U shaped trend. Moderate but consistent indicators of seasonality. Noisy remainder with large spikes, indicating irregular production. Suggesting ARIMA.
+* Planes:  Non linear hill shaped trend. Weak indicators of seasonality. Noisy remainder with large spikes, indicating irregular production. Suggesting ARIMA.
+* Ships: Strong upward trend, Consistent seasonality spikes.  Noisy remainder with large spikes, indicating irregular production. Suggesting STL or ETS.
+* Trains: Data not present.
+* Trucks and Buses: Non linear hill shaped trend. Moderate but very low seasonality. Lower remainder spikes. Suggesting STL or ETS.
+* Vintage Cars: Steady upward trend. Moderate seasonality Trends. Suggesting STL or ETS.
+
+We will run an additional accuracy test between ARIMA, STL, ETS and Linear Regression to determine which forecasting would best suit our production lines. 
+```{r accuracy_test_Bea, echo = FALSE}
+production_model <- function(product_line) {
+  # Create a productline time table
+  submodel <- Final_SalesXProduction_Productline %>%
+    filter(PRODUCTLINE == product_line) %>%
+    arrange(Month) %>%
+  # Fill in missing order points with 0's
+    tidyr::complete(
+      Month = seq.Date(min(Month), max(Month), by = "month"),
+      fill = list(TOTAL_UNITS_PRODUCED = 0)
+    )
+  
+  # Build Time Series object
+  ts_submodel <-ts(submodel$TOTAL_UNITS_PRODUCED,
+                   start = c(year(min(submodel$Month)),
+                             month(min(submodel$Month))),
+                   frequency = 12)
+  last_date <- max(submodel$Month)
+  target_end <- as.Date("2006-01-01")
+  h <- interval(last_date, target_end) %/% months(1)
+  
+  ets_auto <- ets(ts_submodel)
+  forecast_ets_auto <- forecast(ets_auto, h = h)
+  
+  arima_auto <- auto.arima(ts_submodel)
+  forecast_arima <- forecast(arima_auto, h = h)
+  
+  lm_model <- tslm(ts_submodel ~ trend + season)
+  forecast_lm <- forecast(lm_model, h = h)
+  
+  stl_fit <- stl(ts_submodel, s.window = "period")
+  stl_forecast <- forecast(stl_fit, h = h)
+  
+   stl_forecast <- tryCatch(
+    stlf(ts_submodel, h = h),
+    error = function(e) NULL
+  )
+  
+  accuracy_table <- list(
+    ETS_Auto = accuracy(forecast_ets_auto)[1,],
+    ARIMA = accuracy(forecast_arima)[1,],
+    Linear_Regression = accuracy(forecast_lm)[1,]
+  )
+  if (!is.null(stl_forecast)) {
+    accuracy_table$STL <- accuracy(stl_forecast)[1,]
+  }
+  
+  accuracy_table <- round(do.call(rbind, accuracy_table), 2)
+  cat("\n===", product_line, "===\n")
+  print(accuracy_table)
+}
+
+product_lines <- unique(Final_SalesXProduction_Productline$PRODUCTLINE)
+results <- map(product_lines, production_model)
+product_lines <- product_lines[product_lines != "Trains"]
+results <- results[!sapply(results, is.null)]
+
+```
+Due to the noise and lack of linearity within our production data ARIMA and ETS struggle to find auto correlations within the data, making their forecasting less reliable. Our accuracy charts indicate that Linear Regression would be the best forecasting model to use. However, Linear regression is best used for stable models with consitant rates over time. Past observations of our charts indicate there is little stability and linearity between our product lines except for Ships. Additional behind the scenes tests had also been conducted, and the forecasts of Linear Regression data projected negative values, enforcing the unreliability to use said model. Therefore, the second best option to use is an STL model to forecast our future productions.
+```{r forecast_production_Bea}
+forecast_production <- function(product_line) {
+  submodel <- Final_SalesXProduction_Productline %>%
+    filter(PRODUCTLINE == product_line) %>%
+    arrange(Month) %>%
+    # Fill in missing order points with 0's
+    tidyr::complete(
+      Month = seq.Date(min(Month), max(Month), by = "month"),
+      fill = list(TOTAL_UNITS_PRODUCED = 0)
+    )
+  
+  ts_submodel <- ts(submodel$TOTAL_UNITS_PRODUCED,
+                 start = c(year(min(submodel$Month)),
+                           month(min(submodel$Month))),
+                 frequency = 12)
+  # Calculate Time series ranges
+  last_date <- max(submodel$Month)
+  target_end <- as.Date("2005-12-31")
+  h <- interval(last_date, target_end) %/% months(1)
+  
+  # Use different series depending num months in dataset
+
+  stl_model <- stl(ts_submodel, s.window = "periodic")
+  ts_forecast <- forecast(stl_model, h=h) 
+  
+  # Add a floor of 0 to reduce negative forecasting
+  ts_forecast$lower[ts_forecast$lower < 0] <- 0
+  
+  # Display forecasting data
+  cat("\n===", product_line, "===\n")
+  print(ts_forecast)
+  
+  #plot the forecast
+  autoplot(ts_forecast) +
+    ggtitle(paste(product_line, "Orders Forecast"))
+  
+}
+
+#Run all forecasts
+product_lines <- unique(Final_SalesXProduction_Productline$PRODUCTLINE)
+product_lines <- product_lines[product_lines != "Trains"]
+#Map the products to the function
+results <- map(product_lines, forecast_production)
+results
+
+```
+Using STL forecasting, we visualized our estimated productions per product line for June 2005 - December 2005. Across all of our charts we see wide confidence intervals. The noise we observed in our residuals is reflected in these confidence intervals. The irregularity of our production is reflected within the visualized models. Due to the highly uncertain precision of the forecast, the model should be used as a guidance of production ranges as opposed to precise targets. For certain production lines, we should anticipate higher production values in August or November for the upcoming holiday seasons. Below is our average expected production ranges:   
+* Classic Cars:     5-20
+* Motorcycles:      15-45   Holidays = 60+
+* Planes:           30-60   Holidays = 90+
+* Ships:            100-140 Holidays = 170+
+* Trains:           Data not present.
+* Trucks and Buses: 25-40
+* Vintage Cars:     35-60   Holidays = 85+
+
 
 ## *Cost and Profit Analysis*
 
