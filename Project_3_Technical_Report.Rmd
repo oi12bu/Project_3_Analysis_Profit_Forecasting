@@ -59,7 +59,6 @@ install.packages("dplyr")      # Data transformation
 install.packages("car")        # Companion to Applied Regression
 install.packages("MASS")       # Statistical functions
 install.packages("DT")         # Renders Data Tables
-install.packages("patchwork")  # Visualizes multiple charts
 ```
 #### Library Packages to Load
 
@@ -73,7 +72,6 @@ library(dplyr)
 library(car)
 library(MASS)
 library(DT)
-library(patchwork)
 ```
 
 #### Import Data Files
@@ -183,8 +181,8 @@ weekly_productions_by_productline
 #### Productline Regression Modeling
 Some issues that arise with the implementation of aggregated costs per unit and calculated productions based on the CPU calculations are the inaccuracies of the calculated metrics. This form of calculation leads to over generalization of the data, and can include compounded floating point errors over time. The best and most accurate solution to calculate accurate CPU's per product line is by conducting a multiple regression analysis on our product line costs.
 
-Listed below is the final conduction of the multiple regression analysis. The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy. An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory. However, this led to less accurate regression results with 61%-68% accuracy rates. We also note that there resides an "outlier" column within our data set. This column lets us know how far the weekly costs have deviated from our standard weekly costs. To account for the outliers, we will use a flag column to indicate where the outlier data resides. The outlying data will then be used as weights in our linear model to account for items that may be skewing the data.  A Linear model will be used in our calculations with outliers as weights to downwight any extreme observations, giving us more stable cost estimates.   
-```{r productline_regression_bea, echo = FALSE}
+Listed below is the final conduction of the multiple regression analysis. The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy. An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory. However, this led to less accurate regression results with 61%-68% accuracy rates. We also note that there resides an "outlier" column within our data set. This column lets us know how far the weekly costs have deviated from our standard weekly costs. To account for the outliers, we will use a flag column to indicate where the outlier data resides. The outlying data will then be used as weights in our linear model to account for items that may be skewing the data.  A Linear model will be used in our calculations with outliers as weights to down weight any extreme observations, giving us more stable cost estimates.   
+```{r productline_regression_Bea, echo = FALSE}
 # Include the factory and outliers for the regression
 
 Master_Regression <- lm(weekly_cost ~ Classic_Cars + Motorcycles + Planes + Ships + 
@@ -201,10 +199,10 @@ The final determination was to run the multiple regression analysis with all of 
 Our residuals model shows clusters of dots near the 0 line. Showing that the majority of our estimated data has a close fit accuracy. There are large outliers in the data but our model accounted for that. The Q-Q residuals show that a majority of our predicted costs are predicted perfectly with a pattern. However, we have a heavy tail resulted from our outlier data. The Scale-Location presents a relatively flat line with relatively consistent distribution of data. This means that our predicted costs have been balanced successfully. The residuals vs leverage chart displays a few points that deviate far from the red line, but our data doesn't exceed Cook's distance. Therefore, we dont have data points that break the accuracy of our cost estimates, and its safe to use the calculated regression data.   
 
 This regression analysis tells us that our baseline data intercept resides from Factory 0 data calculations. Meaning that our base costs, electricity, labor, etc., are $448 at Factory 0.
-We see that Factory 1 operates at a a cheaper base cost by $191. However, it should be noted that this data has a p-value of 0.48 indicating that there is little statistical significance that this value is accurate. Contrary to Factory 1, Factory 2 operates at a more expensive cost of 98 dollars more than Factory 0. We see that this information is accurate with Factory 0 and 1 with p-value < 0.05. The regression model also gives us the cost to produce each product as displayed by the estimate next to the products name. Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number. 
+We see that Factory 1 operates at a a cheaper base cost by $191. Contrary to Factory 1, Factory 2 operates at a more expensive cost of 98 dollars more than Factory 0. We see that this information is accurate with Factory 0 and 1 with p-value < 0.05. The regression model also gives us the cost to produce each product as displayed by the estimate next to the products name. Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number. 
 
 #### Implement Regression Modeling
-With our CPU's estimated, we will now incorporate them into our product line data set. The aggregated average CPU's will remain inside the data set for comparison of mathematical discrepancies. We will incorporate the regression information by mutating the regression CPU's into our elongated data set, excluding product lines that did not produce anything. We will also include calculations of our factory base costs my mutating in the regression base intercepts by our factory ID's. 
+With our CPU's estimated, we will now incorporate them into our product line data set. The aggregated average CPU's will remain inside the data set for comparison of mathematical discrepancies. We will incorporate the regression information by mutating the regression CPU's into our elongated data set, excluding product lines that did not produce anything. We will also include calculations of our factory base costs by mutating in the regression base intercepts by our factory ID's. 
 ```{r implement_product_regression_Bea, echo = FALSE}
  
 # Assign predicted coefficients of regression model to long format model
@@ -341,7 +339,7 @@ Summary_Monthly_Data <- production_data %>%
 Summary_Monthly_Data
 ```
 
-For our sales implementation, we will create another monthly sales data set. Only grouping the sales data by month as opposed to month and product line. Similarly to the former sales set, we will also include the ranged metrics of our selling prices.
+For our sales implementation, we will create another monthly sales data set. Only grouping the sales data by month as opposed to month and product line. Similar to the former sales set, we will also include the ranged metrics of our selling prices.
 ```{r Monthly_Sales_Refinement_Bea, echo=FALSE}
 #Calculate average price by month - used for monthly data
 Monthly_Sales_Data <- sales_data %>%
@@ -358,7 +356,7 @@ Monthly_Sales_Data <- sales_data %>%
 Monthly_Sales_Data
 ```
 
-Lastly, we will combine the two data sets. This combination will be implemented by a full join of both sets. Post join, Revenue ranges will be calculated, and so too will profit ranges. The Profit ranges will also include the Actual profit of our company. Actual profit is calculated by taking our actual sales and subtracting them by our actual monthly costs.
+Lastly, we will combine the two data sets. This combination will be implemented by a full join of both sets. Post join, Revenue ranges will be calculated, and so too will profit ranges. The Profit ranges will also include the Actual Profit of our company. Actual Profit is calculated by taking our actual sales and subtracting them by our actual monthly costs.
 ```{r Monthly_Sales and_Production_Bea, echo = FALSE}
 # FUll join of sales and production
 Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
@@ -372,12 +370,12 @@ Final_SalesXProduction_Month$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Month$
 Final_SalesXProduction_Month$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Month$AVG_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
 Final_SalesXProduction_Month$MAX_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MAX_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
 
-#add Revenue
+# Add Revenue
 Final_SalesXProduction_Month$MIN_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
 Final_SalesXProduction_Month$AVG_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
 Final_SalesXProduction_Month$MAX_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
 
-#add profit
+# Add profit
 Final_SalesXProduction_Month$MIN_TOTAL_PROFIT <- Final_SalesXProduction_Month$MIN_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
 Final_SalesXProduction_Month$AVG_TOTAL_PROFIT <- Final_SalesXProduction_Month$AVG_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
 Final_SalesXProduction_Month$MAX_TOTAL_PROFIT <- Final_SalesXProduction_Month$MAX_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
@@ -396,7 +394,7 @@ Implemented below are any additional modifications or constructions of data impl
 
 Both data sets have been constructed. We may now move into the analysis phase. This phase will include EDA of our profits and productions as well as forecasting using regression modeling and verification. 
 
-#### Data Assumptions
+## Data Assumptions
 Several Assumptions are made for this data cleaning process...
 
 - Production values belong to the month of the recorded date,
@@ -572,6 +570,7 @@ results
 ```
 
 Using STL forecasting, we visualized our estimated productions per product line for June 2005 - December 2005. Across all of our charts we see wide confidence intervals. The noise we observed in our residuals is reflected in these confidence intervals. The irregularity of our production is reflected within the visualized models. Due to the highly uncertain precision of the forecast, the model should be used as a guidance of production ranges as opposed to precise targets. For certain production lines, we should anticipate higher production values in August or November for the upcoming holiday seasons. Below is our average expected production ranges:   
+
 * Classic Cars:     5-20
 * Motorcycles:      15-45   Holidays = 60+
 * Planes:           30-60   Holidays = 90+
@@ -583,7 +582,7 @@ Using STL forecasting, we visualized our estimated productions per product line 
 We now know our production ranges to begin implementing for consistent production levels. We also need to conduct an analysis of our costs and profits. This analysis will aid in the understanding of the main contributors to our company's success. 
 
 ## *Cost and Profit Analysis*
-Our monthly productions, costs, and profits have already been calculated in our [Data Transformation](#data-transformation) section. The product line costs per units were calculated in [Productline Regression Modeling](#productline-regression-modeling) using R Studios multiple linear regression function. The CPU's were implemented into our datasets by month and product line, then we combined the sales dataset and production data set in [Joining Sales and Monthly Production by Productline](#joining-sales-and-monthly-production-by-productline). Within this section, we gathered our sales per product line by creating individual columns representing the min, average, and max sales per product. Items were sold at varying prices and we will use these three variables to determine price ranges we should stick with. Within the same section our CPU's were subtracted by our selling price to determine our profits. The finalized conjoining and calculations of the data reside within the `Final Sales x Production Productline` CSV. This data set will be used to visualize our cost and profit analyses.
+Our monthly productions, costs, and profits have already been calculated in our [Data Transformation](#data-transformation) section. The product line costs per units were calculated in [Productline Regression Modeling](#productline-regression-modeling) using R Studios multiple linear regression function. The CPU's were implemented into our datasets by month and product line, then we combined the sales dataset and production data set in [Joining Sales and Monthly Production by Productline](#joining-sales-and-monthly-production-by-productline). Within this section, we gathered our sales per product line by creating individual columns representing the min, average, and max sales per product. Items were sold at varying prices and we will use these three variables to determine price ranges we should stick with. Within the same section our CPU's were subtracted by our selling price to determine our profits. The finalized conjoining and calculations of the data reside within the `Final Sales x Production Productline` CSV. This data set will be used to visualize our cost and profit analyses, and the analysis will be conducted by Bea.
 ```{r final_dataset_Bea, echo = FALSE}
 datatable(Final_SalesXProduction_Productline,
           options = list(
@@ -654,10 +653,10 @@ Final_SalesXProduction_Productline %>%
 
 ```
 
-When we observe our production costs by factory and product line, we see that factory 2 has the highest average production costs, maxing over `$7,000` per production type. The average production costs for factory 2 appear appropriate with the two product types, Vintage Cars and Planes, having the second highest production counts coinciding with the higher production costs of planes. Planes have the third highest CPU, but are constructed in the same facility as our second lowest CPU item, Vintage Cars. We may be seeing the heavy production costs of planes influencing Vintage Cars, putting them on similar average production cost levels, regardless of the low CPU Vintage cars have. Despite Classic Cars high production values, We have very low production costs. We can observe why this case may be because its average production counts lie below 25 units per production. Surprisingly, we have very average production costs for ships even though they have the highest production counts. Our remaining products average in production ranges between 25-75 and their average production costs range between `$2,000 - $6,000`. We have a clear idea of our production costs, now we would like to analyze our revenue and profits...
+When we observe our production costs by factory and product line, we see that factory 2 has the highest average production costs, maxing over `$7,000` per production type. The average production costs for factory 2 appear appropriate with the two product types, Vintage Cars and Planes, having the second highest production counts coinciding with the higher production costs of planes. Planes have the third highest CPU, but are constructed in the same facility as our second lowest CPU item, Vintage Cars. We may be seeing the heavy production costs of planes influencing Vintage Cars, putting them on similar average production cost levels, regardless of the low CPU Vintage cars have. Despite Classic Cars high production costs, we have very low production counts. We can observe why this case may be because its average production counts lie below 25 units per production. Surprisingly, we have very average production costs for ships even though they have the highest production counts. Our remaining products average in production ranges between 25-75 and their average production costs range between `$2,000 - $6,000`. We have a clear idea of our production costs, now we would like to analyze our revenue and profits...
 
 ```{r finance_bars_Bea, echo = FALSE}
-Final_SalesXProduction_Productline %>%
+plot <- Final_SalesXProduction_Productline %>%
   group_by(PRODUCTLINE) %>%
   summarise(
     MIN_Costs   = min(AVG_PRODUCTION_COST_W_BASE, na.rm = TRUE),
@@ -697,6 +696,8 @@ Final_SalesXProduction_Productline %>%
     plot.title      = element_text(hjust = 0),
     legend.position = "top"
   )
+#Suppress the missing values warning coming from trains lack of data
+suppressWarnings(print(plot))
 ```
 
 ```{r long_hist_expenses_Bea, echo = FALSE}
@@ -775,7 +776,7 @@ guides(
   theme_minimal() +
   labs(
     title = "Finance Range by Product Line",
-    subtitle = "Diamonds indicate production cost",
+    subtitle = "Diamonds Indicate Production Cost",
     y = "Expenses per Unit",
     x = "Product",
     fill = "Measure"
@@ -786,7 +787,8 @@ guides(
   )
 
 ```
-Observing the Bar chart, we see for almost every product line we have revenue and profits exceed an average of `$30,000`. Classic Cars is our highest profiting item, yet we previously observed that it is one of the highest costing items to produce with the lowest amount of production occurring. We also note that Ships are our highest produced item with the lowest cost, and it has one of the lowest average profit and revenue. Our lowest revenue occurs from trains, using the only data we had available. Based on our production costs
+
+Observing the Bar chart, we see for almost every product line we have revenue and profits exceed an average of `$30,000`. Classic Cars is our highest profiting item, yet we previously observed that it is one of the highest costing items to produce with the lowest amount of production occurring. We also note that Ships are our highest produced item with the lowest cost, and it has one of the lowest average profit and revenue. Our lowest revenue occurs from trains, using the only data we had available. Based on our production costs, production numbers, and average finances, there appears to be a discrepancy between our production and sales data. This may be due to a back stock of items already produced, and we are selling large quantities of back stocked products. We can also note in our finance ranges that our selling points per unit have dropped below our production costs per unit. The Box and Whisker indicates that we have negative profits per unit based on the selling points. Despite the implications that we are loosing money per unit, our sales appear unaffected. Furthering that there is something off with our production data, and it's correlation could lie within back stocked items.. While our production data appears to have questionable results, we can confirm that we have substantially high profits per product line, but Trains and Ships are our least profitable. We can also conclude that there are instances in which we are selling below our production costs per unit, and should avoid selling below that mark.
 
 ## *Forecasting Profits*
 
