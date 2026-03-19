@@ -53,6 +53,7 @@ install.packages("ggplot2")    # Data visualization
 install.packages("dplyr")      # Data transformation
 install.packages("car")        # Companion to Applied Regression
 install.packages("MASS")       # Statistical functions
+install.packages("DT")         # Renders Data Tables
 ```
 
 ### Running the Analysis

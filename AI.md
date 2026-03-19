@@ -114,30 +114,31 @@ N/A
 
 | Tool | Version/Model | Purpose |
 |------|--------------|---------|
-|  |  |  |
+| Claude | Claude Sonnet 4.6 | Coding Assistance |
 
 ### Interactions Log
 
-#### Entry 1 — `YYYY-MM-DD`
+#### Entry 1 — `2026-03-16`
 
-**Task:** <!-- What were you trying to accomplish? -->
+**Task:** Fixing some bugs within my forecasting.
 
 **Prompt(s) Used:**
-```
-<!-- Paste the exact prompt(s) you sent to the AI -->
-```
+
+**Prompt:** Some product lines show a flat forecast line instead of a shaped
+seasonal forecast. Why, and how do I fix it?
+
 
 **AI Output Summary:**
-<!-- Briefly describe what the AI produced -->
+Claude explained that `auto.arima()` was selecting ARIMA(0,0,0) a plain mean model when the seasonal signal was too weak over
+29 observations to justify extra parameters. The fix added an `arimaorder()` check to detect the flat model and override to STL, which always reattaches the seasonal component.
 
-**Code/Content Adopted:** <!-- Yes / No / Partially -->
+**Code/Content Adopted:** Yes
 
 **Files Affected:**
-- `<!-- path/to/file.py -->`
+Project_3_Production.Rmd
 
 **Notes:**
-<!-- Any observations, modifications made, or caveats about the AI output -->
-
+No notes
 ---
 
 <!-- Duplicate the entry block above for each additional AI interaction -->
