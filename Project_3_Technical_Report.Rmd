@@ -7,47 +7,62 @@ output:
   pdf_document: default
 instructor: Eric Lloyd
 course: CSB304 H10 31429 Data Analytics in Business
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
 # Timeless Transport Models Resource Analysis and Profit Forecasting
+
 ## *Business Objective*
-Timeless Transport Models is a Business to Business company focusing on the production and distribution of modeled vehicles. Since 2003 they have been accumulating data regarding customer engagement, sales and productions, and distribution.Timeless Transport Models operates three factories producing two product lines each. As the company enters the second half of 2005 (June-December), leadership requires production forecasts, cost analysis, and projected profit estimates.   
-This report will entail:   
 
-- Aggregates of weekly production and cost data into monthly totals
+Timeless Transport Models is a Business to Business company focusing on the production and distribution of modeled vehicles.
+Since 2003 they have been accumulating data regarding customer engagement, sales and productions, and distribution.Timeless Transport Models operates three factories producing two product lines each.
+As the company enters the second half of 2005 (June-December), leadership requires production forecasts, cost analysis, and projected profit estimates.\
+This report will entail:
 
-- Exploratory data analysis
+-   Aggregates of weekly production and cost data into monthly totals
 
-- Forecasts of monthly production (June–December 2005)
+-   Exploratory data analysis
 
-- Calculations of average cost and profit per product line
+-   Forecasts of monthly production (June–December 2005)
 
-- Projects total expected profit for the remainder of 2005   
+-   Calculations of average cost and profit per product line
 
-All analyses are conducted in R using reproducible workflows. Specifications regarding specific team member contributions will be included in the R chunk title or described directly in this document. Explicit information regarding team member contributions are listed in the CONTRIBUTING.md file located in the git repository.
- 
+-   Projects total expected profit for the remainder of 2005
+
+All analyses are conducted in R using reproducible workflows.
+Specifications regarding specific team member contributions will be included in the R chunk title or described directly in this document.
+Explicit information regarding team member contributions are listed in the CONTRIBUTING.md file located in the git repository.
+
 ## *Expected Uses*
-This analysis is intended to support strategic and operational decisions for Timeless Transport Models during the second half of 2005. Specifically, the results of this forecasting and profit analysis may be used in the following ways:
 
-- Production Planning
+This analysis is intended to support strategic and operational decisions for Timeless Transport Models during the second half of 2005.
+Specifically, the results of this forecasting and profit analysis may be used in the following ways:
 
-- Budgeting and financial Planning
+-   Production Planning
 
-- Product line Strategies
+-   Budgeting and financial Planning
 
-- Factory Performance Evaluations
+-   Product line Strategies
 
-- Scenario Planning
+-   Factory Performance Evaluations
 
-- Strategical Decision Making
+-   Scenario Planning
+
+-   Strategical Decision Making
 
 ## *Data Refinement*
-To kick off this project we must ensure that our data is properly set up for analysis. Data preparations includes importing and formatting data sets, correcting any missing or inaccurate values, and aggregating the data. The data refinement portion of this project was conducted by Bea, our Project Manager.
+
+To kick off this project we must ensure that our data is properly set up for analysis.
+Data preparations includes importing and formatting data sets, correcting any missing or inaccurate values, and aggregating the data.
+The data refinement portion of this project was conducted by Bea, our Project Manager.
 
 #### Library Packages to Install
+
 To begin refinement we must first import the data sets and any libraries needed for this analysis.
 
-- If you plan on running this Project Notebook, and do not have these packages installed navigate to the R Studio Console and copy/paste the install package you do not yet have.
+-   If you plan on running this Project Notebook, and do not have these packages installed navigate to the R Studio Console and copy/paste the install package you do not yet have.
 
 ``` r
 install.packages("readr")      # Read and import data
@@ -60,6 +75,7 @@ install.packages("car")        # Companion to Applied Regression
 install.packages("MASS")       # Statistical functions
 install.packages("DT")         # Renders Data Tables
 ```
+
 #### Library Packages to Load
 
 ```{r library_loading}
@@ -75,7 +91,14 @@ library(DT)
 ```
 
 #### Import Data Files
-With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis. The file used to conduct said analysis is the "weekly_factory_production.csv". This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced. Additionally, the file will be referred to as "production_data" for the remainder of this analysis. "sales_data_cleaned.csv" is a file containing our customer order data, sales and distributions from 2003-2005. This file will be used for profit analysis, and will be referred to as "sales_data".
+
+With the libraries fully loaded, we must now import the data sets we will be using to conduct our analysis.
+The file used to conduct said analysis is the "weekly_factory_production.csv".
+This file contains information regarding our production numbers, production costs, the locations and dates of where said items were produced.
+Additionally, the file will be referred to as "production_data" for the remainder of this analysis.
+"sales_data_cleaned.csv" is a file containing our customer order data, sales and distributions from 2003-2005.
+This file will be used for profit analysis, and will be referred to as "sales_data".
+
 ```{r import_files_Bea}
 # Import production data, convert weeks into date datatype
 production_data <- read_csv('CSV/weekly_factory_production.csv',
@@ -90,20 +113,23 @@ sales_data$ORDERDATE <- mdy(sales_data$ORDERDATE)
 ```
 
 #### Data Transformation
-With the data fully imported, we now need to refine the data to sure its accuracy for the conduction of analyses. 
+
+With the data fully imported, we now need to refine the data to sure its accuracy for the conduction of analyses.
 
 Data refinement may include, but is not subject to:
 
-- Modifications of missing or Null values
-- Altering of data types
-- Renaming variables
-- Mathematical implementations
-- Data Standardization
-- Management of outliers
-- Normalizing Data
-- Aggregating Data
+-   Modifications of missing or Null values
+-   Altering of data types
+-   Renaming variables
+-   Mathematical implementations
+-   Data Standardization
+-   Management of outliers
+-   Normalizing Data
+-   Aggregating Data
 
-Modifications conducted on this data set include, altering data types, mathematical implementations,and data aggregation. We start the process by inspecting our data first, then refine based on our findings.
+Modifications conducted on this data set include, altering data types, mathematical implementations,and data aggregation.
+We start the process by inspecting our data first, then refine based on our findings.
+
 ```{r data_inspection_Bea, echo = FALSE}
 # Inspect data types
 print("Inspect Data Types")
@@ -118,7 +144,11 @@ print("Verify Missing Values")
 colSums((is.na(production_data)))
 
 ```
-It appears as though there are no major discrepancies to address within our data. Next we will refine our data to include metrics, summaries metrics, and aggregate data into a monthly format or a product line format. We first begin this process by creating basic columns such as a year and month column, calculating total units, and calculating an aggregate cost per unit.
+
+It appears as though there are no major discrepancies to address within our data.
+Next we will refine our data to include metrics, summaries metrics, and aggregate data into a monthly format or a product line format.
+We first begin this process by creating basic columns such as a year and month column, calculating total units, and calculating an aggregate cost per unit.
+
 ```{r data_refinement_Bea}
 
 # Implement a Month column displaying the month and year for aggregation and visualization
@@ -160,10 +190,16 @@ palette <- c(
   )
 
 ```
-### Aggregation by Productline
-Some important features for our analysis include the analyzing of our profits and production based on product lines. We need to aggregate our production data by months and product line types to get a full visualization of our costs and profits based on the specific products we are producing. We will also include a column of the factory the product was produced in for further analysis of our individual factories.
 
-For clarity regarding our individual products, we must convert our data into a long format, placing each product within a Productline column as opposed to our current format with columns labeled by each product we produce. We would also like to include an aggregation of the production costs for each of these units by multiplying our aggregated cost per unit by the total number of units produced.  
+### Aggregation by Productline
+
+Some important features for our analysis include the analyzing of our profits and production based on product lines.
+We need to aggregate our production data by months and product line types to get a full visualization of our costs and profits based on the specific products we are producing.
+We will also include a column of the factory the product was produced in for further analysis of our individual factories.
+
+For clarity regarding our individual products, we must convert our data into a long format, placing each product within a Productline column as opposed to our current format with columns labeled by each product we produce.
+We would also like to include an aggregation of the production costs for each of these units by multiplying our aggregated cost per unit by the total number of units produced.
+
 ```{r production_long_format_Bea, echo = FALSE}
 # Crate a long format of production data
 weekly_productions_by_productline <- production_data %>% 
@@ -178,11 +214,24 @@ weekly_productions_by_productline$AGG_PRODUCT_COSTS <- weekly_productions_by_pro
 
 weekly_productions_by_productline
 ```
-#### Productline Regression Modeling
-Some issues that arise with the implementation of aggregated costs per unit and calculated productions based on the CPU calculations are the inaccuracies of the calculated metrics. This form of calculation leads to over generalization of the data, and can include compounded floating point errors over time. The best and most accurate solution to calculate accurate CPU's per product line is by conducting a multiple regression analysis on our product line costs.
 
-Listed below is the final conduction of the multiple regression analysis. The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy. An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory. However, this led to less accurate regression results with 61%-68% accuracy rates. We also note that there resides an "outlier" column within our data set. This column lets us know how far the weekly costs have deviated from our standard weekly costs. To account for the outliers, we will use a flag column to indicate where the outlier data resides. The outlying data will then be used as weights in our linear model to account for items that may be skewing the data.  A Linear model will be used in our calculations with outliers as weights to down weight any extreme observations, giving us more stable cost estimates.   
-```{r productline_regression_Bea, echo = FALSE}
+#### Productline Regression Modeling
+
+Some issues that arise with the implementation of aggregated costs per unit and calculated productions based on the CPU calculations are the inaccuracies of the calculated metrics.
+This form of calculation leads to over generalization of the data, and can include compounded floating point errors over time.
+The best and most accurate solution to calculate accurate CPU's per product line is by conducting a multiple regression analysis on our product line costs.
+
+Listed below is the final conduction of the multiple regression analysis.
+The analysis began by only running the regression model on the productline, but this resulted in a model with only 77% accuracy.
+An additional analysis was conducted my separating the data by factory types and conducting an analysis of the product lines based on each factory.
+However, this led to less accurate regression results with 61%-68% accuracy rates.
+We also note that there resides an "outlier" column within our data set.
+This column lets us know how far the weekly costs have deviated from our standard weekly costs.
+To account for the outliers, we will use a flag column to indicate where the outlier data resides.
+The outlying data will then be used as weights in our linear model to account for items that may be skewing the data.
+A Linear model will be used in our calculations with outliers as weights to downwight any extreme observations, giving us more stable cost estimates.
+
+```{r productline_regression_bea, echo = FALSE}
 # Include the factory and outliers for the regression
 
 Master_Regression <- lm(weekly_cost ~ Classic_Cars + Motorcycles + Planes + Ships + 
@@ -195,14 +244,34 @@ plot(Master_Regression)
 par(mfrow=c(1,1))
 ```
 
-The final determination was to run the multiple regression analysis with all of the products, the factory id's, and our outlier data. The resulting regression model lead to a 92% accuracy rating.
-Our residuals model shows clusters of dots near the 0 line. Showing that the majority of our estimated data has a close fit accuracy. There are large outliers in the data but our model accounted for that. The Q-Q residuals show that a majority of our predicted costs are predicted perfectly with a pattern. However, we have a heavy tail resulted from our outlier data. The Scale-Location presents a relatively flat line with relatively consistent distribution of data. This means that our predicted costs have been balanced successfully. The residuals vs leverage chart displays a few points that deviate far from the red line, but our data doesn't exceed Cook's distance. Therefore, we dont have data points that break the accuracy of our cost estimates, and its safe to use the calculated regression data.   
+The final determination was to run the multiple regression analysis with all of the products, the factory id's, and our outlier data.
+The resulting regression model lead to a 92% accuracy rating.
+Our residuals model shows clusters of dots near the 0 line.
+Showing that the majority of our estimated data has a close fit accuracy.
+There are large outliers in the data but our model accounted for that.
+The Q-Q residuals show that a majority of our predicted costs are predicted perfectly with a pattern.
+However, we have a heavy tail resulted from our outlier data.
+The Scale-Location presents a relatively flat line with relatively consistent distribution of data.
+This means that our predicted costs have been balanced successfully.
+The residuals vs leverage chart displays a few points that deviate far from the red line, but our data doesn't exceed Cook's distance.
+Therefore, we dont have data points that break the accuracy of our cost estimates, and its safe to use the calculated regression data.
 
-This regression analysis tells us that our baseline data intercept resides from Factory 0 data calculations. Meaning that our base costs, electricity, labor, etc., are $448 at Factory 0.
-We see that Factory 1 operates at a a cheaper base cost by $191. Contrary to Factory 1, Factory 2 operates at a more expensive cost of 98 dollars more than Factory 0. We see that this information is accurate with Factory 0 and 1 with p-value < 0.05. The regression model also gives us the cost to produce each product as displayed by the estimate next to the products name. Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number. 
+This regression analysis tells us that our baseline data intercept resides from Factory 0 data calculations.
+Meaning that our base costs, electricity, labor, etc., are \$448 at Factory 0.
+We see that Factory 1 operates at a a cheaper base cost by \$191.
+However, it should be noted that this data has a p-value of 0.48 indicating that there is little statistical significance that this value is accurate.
+Contrary to Factory 1, Factory 2 operates at a more expensive cost of 98 dollars more than Factory 0.
+We see that this information is accurate with Factory 0 and 1 with p-value \< 0.05.
+The regression model also gives us the cost to produce each product as displayed by the estimate next to the products name.
+Lastly meaning that our CPU is determined by the regression estimate of the product, and when we calculate the overall product costs we will multiply our CPU by the products produced, and add our base Factory cost, and any additional factory costs based on the factory number.
 
 #### Implement Regression Modeling
-With our CPU's estimated, we will now incorporate them into our product line data set. The aggregated average CPU's will remain inside the data set for comparison of mathematical discrepancies. We will incorporate the regression information by mutating the regression CPU's into our elongated data set, excluding product lines that did not produce anything. We will also include calculations of our factory base costs by mutating in the regression base intercepts by our factory ID's. 
+
+With our CPU's estimated, we will now incorporate them into our product line data set.
+The aggregated average CPU's will remain inside the data set for comparison of mathematical discrepancies.
+We will incorporate the regression information by mutating the regression CPU's into our elongated data set, excluding product lines that did not produce anything.
+We will also include calculations of our factory base costs my mutating in the regression base intercepts by our factory ID's.
+
 ```{r implement_product_regression_Bea, echo = FALSE}
  
 # Assign predicted coefficients of regression model to long format model
@@ -234,8 +303,17 @@ weekly_productions_by_productline$REG_TTL_PROD_COST_NO_BASE <- weekly_production
 
 weekly_productions_by_productline
 ```
+
 #### Convert Weekly to Monthly
-With the accurate regression metrics now implemented, we need to aggregate the weekly data into monthly data. We will create a new data set using the former data set we just created. This data set will aggregate the information of the former data set by month, product line, and factory ID. We will also re implement the regression statistics to avoid compounding calculations that may affect accurate data metrics. This data set will not include products that had zero production. Based on previous data set observations we can note that which factories are exclusive to the products they produce. Lastly, we will implement production metrics based on the implemented regression metrics to give us an idea of the costs to produce each product.
+
+With the accurate regression metrics now implemented, we need to aggregate the weekly data into monthly data.
+We will create a new data set using the former data set we just created.
+This data set will aggregate the information of the former data set by month, product line, and factory ID.
+We will also re implement the regression statistics to avoid compounding calculations that may affect accurate data metrics.
+This data set will not include products that had zero production.
+Based on previous data set observations we can note that which factories are exclusive to the products they produce.
+Lastly, we will implement production metrics based on the implemented regression metrics to give us an idea of the costs to produce each product.
+
 ```{r productline_week_to_month_Bea, echo = FALSE}
 # condense the data by month and product line
 monthly_productions_factory_X_productline <- weekly_productions_by_productline %>%
@@ -272,8 +350,15 @@ monthly_productions_factory_X_productline
 
 ```
 
-#### Joining Sales and Monthly Production by Productline
-We are now in the last steps of building out sales and production data set by product line. To incorporate our sales into this data set we must summarize our sales data by product line and date sold. With the sales data condensed in this format we may conduct a full join between the two data sets. Our aggregated sales data by product line will include min, avg, and max price sold columns due to the variance in which our products were sold by distributors. These segregated values will allow us to determine optimal prices to sell our products for. Below is our aggregated sales data.
+#### Conjoin Sales and Monthly Production by Productline
+
+We are now in the last steps of building out sales and production data set by product line.
+To incorporate our sales into this data set we must summarize our sales data by product line and date sold.
+With the sales data condensed in this format we may conduct a full join between the two data sets.
+Our aggregated sales data by product line will include min, avg, and max price sold columns due to the variance in which our products were sold by distributors.
+These segregated values will allow us to determine optimal prices to sell our products for.
+Below is our aggregated sales data.
+
 ```{r Combine_sales_by_product_Bea, echo = FALSE}
 #Calculate average price by product type- used for product monthly data
 monthly_sales_by_productline <- sales_data %>%
@@ -288,7 +373,14 @@ monthly_sales_by_productline <- sales_data %>%
   )
 monthly_sales_by_productline
 ```
-Lastly, we will combine the sales data with our factory data. With these two conjoined, we will implement revenue and profit metrics. Our Revenue metrics will range from min, avg, and max revenue based on the summary metrics we gathered regarding our sale prices. This data will give us an idea of our revenue ranges. The same will be done with our profit margins. However, we will implement our actual profit margins based on our total sales and production costs.
+
+Lastly, we will combine the sales data with our factory data.
+With these two conjoined, we will implement revenue and profit metrics.
+Our Revenue metrics will range from min, avg, and max revenue based on the summary metrics we gathered regarding our sale prices.
+This data will give us an idea of our revenue ranges.
+The same will be done with our profit margins.
+However, we will implement our actual profit margins based on our total sales and production costs.
+
 ```{r Combine_sales_production_by_product_Bea, echo = FALSE}
 # Implement a Full join of the condensed production data and sales data
 Final_SalesXProduction_Productline <- monthly_productions_factory_X_productline %>%
@@ -316,9 +408,18 @@ Final_SalesXProduction_Productline
 This data is now ready for analysis conducting on our product line and further regression modeling.
 
 ### Aggregated Monthly Data by Month
-While it is insightful looking at the minute details of our product line. We would also like general information regarding our monthly sales and production without the noise of our product line. We will create an additional data set to conduct analyses on. Used for overview analyses and regression modeling. The overview of the data set construction includes summarizing our productions by month only and implementing regression metrics, summarizing our sales by month only, and conjoining the to with the implementation of revenue and profit metrics.
 
-We first begin this process by grouping our original production data by months. We will also implement summary metric such as total production costs, and total units produced. The grouped data set will also implement our regression metrics indicated by our regression models predicted costs, and calculations of our average CPU's by dividing our predicted monthly costs by our actual production. We will also include the variance between actual and predicted for further comparisons.
+While it is insightful looking at the minute details of our product line.
+We would also like general information regarding our monthly sales and production without the noise of our product line.
+We will create an additional data set to conduct analyses on.
+Used for overview analyses and regression modeling.
+The overview of the data set construction includes summarizing our productions by month only and implementing regression metrics, summarizing our sales by month only, and conjoining the to with the implementation of revenue and profit metrics.
+
+We first begin this process by grouping our original production data by months.
+We will also implement summary metric such as total production costs, and total units produced.
+The grouped data set will also implement our regression metrics indicated by our regression models predicted costs, and calculations of our average CPU's by dividing our predicted monthly costs by our actual production.
+We will also include the variance between actual and predicted for further comparisons.
+
 ```{r Monthly_refinement_Bea, echo = FALSE}
 # Aggregate the monthly data
 #predicted weekly costs
@@ -339,7 +440,10 @@ Summary_Monthly_Data <- production_data %>%
 Summary_Monthly_Data
 ```
 
-For our sales implementation, we will create another monthly sales data set. Only grouping the sales data by month as opposed to month and product line. Similar to the former sales set, we will also include the ranged metrics of our selling prices.
+For our sales implementation, we will create another monthly sales data set.
+Only grouping the sales data by month as opposed to month and product line.
+Similarly to the former sales set, we will also include the ranged metrics of our selling prices.
+
 ```{r Monthly_Sales_Refinement_Bea, echo=FALSE}
 #Calculate average price by month - used for monthly data
 Monthly_Sales_Data <- sales_data %>%
@@ -356,7 +460,12 @@ Monthly_Sales_Data <- sales_data %>%
 Monthly_Sales_Data
 ```
 
-Lastly, we will combine the two data sets. This combination will be implemented by a full join of both sets. Post join, Revenue ranges will be calculated, and so too will profit ranges. The Profit ranges will also include the Actual Profit of our company. Actual Profit is calculated by taking our actual sales and subtracting them by our actual monthly costs.
+Lastly, we will combine the two data sets.
+This combination will be implemented by a full join of both sets.
+Post join, Revenue ranges will be calculated, and so too will profit ranges.
+The Profit ranges will also include the Actual profit of our company.
+Actual profit is calculated by taking our actual sales and subtracting them by our actual monthly costs.
+
 ```{r Monthly_Sales and_Production_Bea, echo = FALSE}
 # FUll join of sales and production
 Final_SalesXProduction_Month <- Summary_Monthly_Data %>%
@@ -387,28 +496,213 @@ Final_SalesXProduction_Month
 #### Any Additional Modifications
 
 Implemented below are any additional modifications or constructions of data implementation used in this project.
+
 ```{r}
 
 
 ```
 
-Both data sets have been constructed. We may now move into the analysis phase. This phase will include EDA of our profits and productions as well as forecasting using regression modeling and verification. 
+Both data sets have been constructed.
+We may now move into the analysis phase.
+This phase will include EDA of our profits and productions as well as forecasting using regression modeling and verification.
 
-## Data Assumptions
+#### Data Assumptions
+
 Several Assumptions are made for this data cleaning process...
 
-- Production values belong to the month of the recorded date,
-- Missing values represent incomplete reporting rather than zero production.
-- Production and cost values are indicative values of the week they were produced and not a  compounding of former weeks
-- The data represents continuous weekly reporting without major time gaps.
-- All data presented is the only data available to us.
- 
+-   Production values belong to the month of the recorded date,
+-   Missing values represent incomplete reporting rather than zero production.
+-   Production and cost values are indicative values of the week they were produced and not a compounding of former weeks
+-   The data represents continuous weekly reporting without major time gaps.
+-   All data presented is the only data available to us.
+
 ## *Exploratory Data Analysis*
 
-## *Forecasting Production*
-As a note, our production data doesn't contain data regarding train production. Therefore, we will not be forecasting or analyzing trains for this section.   
+Now that we have our monthly production data, we can search for patterns in that data.
+First we will visualize the total production to see if there are any overarching patterns before we dig any deeper.
 
-We have the accumulated data of our monthly productions. Based on our production history we would like to anticipate what our future production will look like. Bea will conduct an observation on our current production for trends or seasonality. This analysis will be conducted via STL decomposition to visualize trend lines and seasonality, and ploting our production timeline. 
+```{r Load and Sort Data, echo = FALSE}
+# Loading the data
+df_total <- read_csv("monthly_salesXproduction.csv", show_col_types = FALSE)
+df_line <- read_csv("monthly_salesXproduction_by_productline.csv", show_col_types = FALSE)
+
+# Sort chronologically by month
+df_total <- df_total %>% arrange(MONTH_PRODUCED)
+df_line <- df_line %>% arrange(MONTH_PRODUCED)
+```
+
+```{r Total Monthly Production Over Time, echo = FALSE}
+plot_total <- ggplot(df_total, aes(x = MONTH_PRODUCED, y = MONTHLY_PRODUCTION)) +
+  geom_line(color = "blue", group = 1) +
+  geom_point(color = "blue") +
+  labs(title = "Total Monthly Production Over Time",
+       x = "Month Produced",
+       y = "Total Units Produced") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  # Making x-axis labels more readable
+  scale_x_discrete(breaks = function(x) x[seq(1, length(x), 
+                      by = max(1, floor(length(x)/15)))])
+print(plot_total)
+```
+
+There doesn't seem to be much of a pattern there, so let's look at the production by product line.
+
+```{r Monthly Production by Product Line Over Time, echo = FALSE}
+df_line_filtered <- df_line %>% 
+  drop_na(factory_id) %>% 
+  mutate(factory_label = paste("Factory", factory_id),
+         MONTH_DATE = ym(MONTH_PRODUCED))
+
+plot_productline <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+                                        color = PRODUCTLINE, group = PRODUCTLINE)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Monthly Production by Product Line Over Time",
+       x = "Month Produced",
+       y = "Units Produced",
+       color = "Product Line") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_date(date_breaks = "2 months", date_labels = "%b `%y")
+
+print(plot_productline)
+```
+
+It's still a bit jumbled, so now we will separate the data by factory.
+
+```{r Monthly Production by Product Line Over Time (Faceted by Factory), echo = FALSE}
+# Making cleaner labels
+df_line_filtered <- df_line %>% 
+  # Removing the factory with no data
+  drop_na(factory_id) %>% 
+  mutate(factory_label = paste("Factory", factory_id),
+         MONTH_DATE = ym(MONTH_PRODUCED))
+
+plot_productline_faceted <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+                                        color = PRODUCTLINE, group = PRODUCTLINE)) +
+  geom_line() +
+  geom_point() +
+  # Splitting the plot by factory
+  facet_wrap(~ factory_label) +
+  labs(title = "Monthly Production by Product Line Over Time (By Factory)",
+       x = "Month Produced",
+       y = "Units Produced",
+       color = "Product Line") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        strip.text = element_text(face = "bold")) +
+  # Easier to read label formatting, every four months for space savings
+  scale_x_date(date_breaks = "4 months", date_labels = "%b `%y")
+
+print(plot_productline_faceted)
+```
+
+Now we can clearly see that Ships have much higher production levels than any of the other product lines, and Classic Cars have distinctly less than any of the others. This is an odd finding, since sales data for those two product lines is inversely proportional to this production data. This could be due to a large back-stock of Classic Cars and a sever shortage of Ships, or it could simply be that the labels on the data columns got switched. The second is more likely but we can't know for sure, so we will bring this up with the stakeholders for further inspection.
+
+Next we will look for trend patterns and seasonality in our data.
+
+```{r Time Series Decomposition for Seasonal Patterns and Trends, echo = FALSE}
+# Making a column of Date objects
+df_total = df_total %>% 
+  mutate(MONTH_DATE = ym(MONTH_PRODUCED))
+
+# Converting to a Time Series object
+start_year <- year(min(df_total$MONTH_DATE))
+start_month <- month(min(df_total$MONTH_DATE))
+
+# Frequency of 12 for 12 months
+production_ts <- ts(df_total$MONTHLY_PRODUCTION,
+                    start = c(start_year, start_month),
+                    frequency = 12)
+
+# STL to split into Seasonality, Trend, and Remainder
+decomposition <- stl(production_ts, s.window = "periodic")
+plot_decomp <- autoplot(decomposition) +
+  theme_minimal() +
+  labs(title = "Time Series Decomposition of Total Monthly Production")
+
+print(plot_decomp)
+```
+
+There is a clear indication of seasonality due to the perfectly repeating pattern in the seasonal portion of our time series decomposition, but we can't yet tell if this repetition is due to just one or more product lines, so we will need to break it down into those categories.
+
+```{r Time Series Decomposition by Product Line, echo = FALSE}
+# Ignoring product lines with no production, i.e. Trains
+valid_product_lines <- df_line %>% 
+  group_by(PRODUCTLINE) %>% 
+  summarize(total = sum(TOTAL_UNITS_PRODUCED, na.rm = TRUE)) %>% 
+  filter(total > 0) %>% 
+  pull(PRODUCTLINE)
+
+# Loop through each valid product line to generate plots
+for (prod_line in valid_product_lines) {
+  # Filter and prepare data for the specific product line
+  df_sub <- df_line %>% 
+    filter(PRODUCTLINE == prod_line) %>% 
+    # If a month is missing, fill it with 0
+    complete(MONTH_PRODUCED = unique(df_line$MONTH_PRODUCED),
+             fill = list(TOTAL_UNITS_PRODUCED = 0)) %>% 
+    arrange(MONTH_PRODUCED)
+  
+  # Create a Time Series object
+  prod_ts <- ts(df_sub$TOTAL_UNITS_PRODUCED,
+                start = c(start_year, start_month),
+                frequency = 12)
+  # Plot Decomposition
+  decomp <- stl(prod_ts, s.window = "periodic")
+  plot_decomp <- autoplot(decomp) +
+    theme_minimal() +
+    labs(title = paste("Time Series Decomposition of Monthly Production:", prod_line))
+  
+  print(plot_decomp)
+  
+  # Plot Seasonal Plot
+  plot_season <- ggseasonplot(prod_ts, year.labels = TRUE, continuous = TRUE) +
+  theme_minimal() +
+  labs(title = paste("Seasonal Plot:", prod_line),
+       y = "Units Produced",
+       x = "Month")
+  
+  print(plot_season)
+}
+```
+
+We can now see that all of the product lines show perfectly repeating seasonal patterns. There is also a general upward trend for the first year and four months, followed by a leveling off and slight decline. The individual product lines all have their own unique trends, however.
+
+Lastly we will determine some basic monthly production data:
+
+```{r Monthly Production Statistics, echo = FALSE}
+# Calculating average monthly production
+cat("Average Monthly Production:\t", round(mean(df_total$MONTHLY_PRODUCTION), 2), "units\n")
+
+# Find peak production month
+peak_month <- df_total %>% filter(MONTHLY_PRODUCTION == max(MONTHLY_PRODUCTION))
+cat("Peak Production Month:\t\t", peak_month$MONTH_PRODUCED, "with", peak_month$MONTHLY_PRODUCTION, "units\n")
+
+# Find lowest production month
+lowest_month <- df_total %>% filter(MONTHLY_PRODUCTION == min(MONTHLY_PRODUCTION))
+cat("Lowest Production Month:\t", lowest_month$MONTH_PRODUCED, "with", lowest_month$MONTHLY_PRODUCTION, "units\n")
+
+cat("Total Production by Product Line:\n")
+product_line_summary <- df_line %>% 
+  group_by(PRODUCTLINE) %>% 
+  summarize(TOTAL_PRODUCED = sum(TOTAL_UNITS_PRODUCED, na.rm = TRUE)) %>% 
+  arrange(desc(TOTAL_PRODUCED))
+
+print(product_line_summary)
+```
+
+## *Forecasting Production*
+
+As a note, our production data doesn't contain data regarding train production.
+Therefore, we will not be forecasting or analyzing trains for this section.
+
+We have the accumulated data of our monthly productions.
+Based on our production history we would like to anticipate what our future production will look like.
+Bea will conduct an observation on our current production for trends or seasonality.
+This analysis will be conducted via STL decomposition to visualize trend lines and seasonality, and ploting our production timeline.
+
 ```{r plot_production_Bea, echo = FALSE}
 # Ingore NA values from trains
 clean_data <- Final_SalesXProduction_Productline %>%
@@ -451,17 +745,18 @@ results
 
 ```
 
-These are our observations of each production line...   
+These are our observations of each production line...
 
-* Classic Cars: Declining then stabilizing trend, Weak indications of seasonality. Remainder is noisy, suggestion irregular productions. Suggesting ARIMA
-* Motorcycles: Non linear,U shaped trend. Moderate but consistent indicators of seasonality. Noisy remainder with large spikes, indicating irregular production. Suggesting ARIMA.
-* Planes:  Non linear hill shaped trend. Weak indicators of seasonality. Noisy remainder with large spikes, indicating irregular production. Suggesting ARIMA.
-* Ships: Strong upward trend, Consistent seasonality spikes.  Noisy remainder with large spikes, indicating irregular production. Suggesting STL or ETS.
-* Trains: Data not present.
-* Trucks and Buses: Non linear hill shaped trend. Moderate but very low seasonality. Lower remainder spikes. Suggesting STL or ETS.
-* Vintage Cars: Steady upward trend. Moderate seasonality Trends. Suggesting STL or ETS.
+-   Classic Cars: Declining then stabilizing trend, Weak indications of seasonality. Remainder is noisy, suggestion irregular productions. Suggesting ARIMA
+-   Motorcycles: Non linear,U shaped trend. Moderate but consistent indicators of seasonality. Noisy remainder with large spikes, indicating irregular production. Suggesting ARIMA.
+-   Planes: Non linear hill shaped trend. Weak indicators of seasonality. Noisy remainder with large spikes, indicating irregular production. Suggesting ARIMA.
+-   Ships: Strong upward trend, Consistent seasonality spikes. Noisy remainder with large spikes, indicating irregular production. Suggesting STL or ETS.
+-   Trains: Data not present.
+-   Trucks and Buses: Non linear hill shaped trend. Moderate but very low seasonality. Lower remainder spikes. Suggesting STL or ETS.
+-   Vintage Cars: Steady upward trend. Moderate seasonality Trends. Suggesting STL or ETS.
 
-We will run an additional accuracy test between ARIMA, STL, ETS and Linear Regression to determine which forecasting would best suit our production lines. 
+We will run an additional accuracy test between ARIMA, STL, ETS and Linear Regression to determine which forecasting would best suit our production lines.
+
 ```{r accuracy_test_Bea, echo = FALSE}
 production_model <- function(product_line) {
   # Create a productline time table
@@ -521,7 +816,13 @@ results <- results[!sapply(results, is.null)]
 
 ```
 
-Due to the noise and lack of linearity within our production data ARIMA and ETS struggle to find auto correlations within the data, making their forecasting less reliable. Our accuracy charts indicate that Linear Regression would be the best forecasting model to use. However, Linear regression is best used for stable models with consitant rates over time. Past observations of our charts indicate there is little stability and linearity between our product lines except for Ships. Additional behind the scenes tests had also been conducted, and the forecasts of Linear Regression data projected negative values, enforcing the unreliability to use said model. Therefore, the second best option to use is an STL model to forecast our future productions.
+Due to the noise and lack of linearity within our production data ARIMA and ETS struggle to find auto correlations within the data, making their forecasting less reliable.
+Our accuracy charts indicate that Linear Regression would be the best forecasting model to use.
+However, Linear regression is best used for stable models with consitant rates over time.
+Past observations of our charts indicate there is little stability and linearity between our product lines except for Ships.
+Additional behind the scenes tests had also been conducted, and the forecasts of Linear Regression data projected negative values, enforcing the unreliability to use said model.
+Therefore, the second best option to use is an STL model to forecast our future productions.
+
 ```{r forecast_production_Bea}
 forecast_production <- function(product_line) {
   submodel <- Final_SalesXProduction_Productline %>%
@@ -569,17 +870,15 @@ results
 
 ```
 
-Using STL forecasting, we visualized our estimated productions per product line for June 2005 - December 2005. Across all of our charts we see wide confidence intervals. The noise we observed in our residuals is reflected in these confidence intervals. The irregularity of our production is reflected within the visualized models. Due to the highly uncertain precision of the forecast, the model should be used as a guidance of production ranges as opposed to precise targets. For certain production lines, we should anticipate higher production values in August or November for the upcoming holiday seasons. Below is our average expected production ranges:   
-
-* Classic Cars:     5-20
-* Motorcycles:      15-45   Holidays = 60+
-* Planes:           30-60   Holidays = 90+
-* Ships:            100-140 Holidays = 170+
-* Trains:           Data not present.
-* Trucks and Buses: 25-40
-* Vintage Cars:     35-60   Holidays = 85+
-
-We now know our production ranges to begin implementing for consistent production levels. We also need to conduct an analysis of our costs and profits. This analysis will aid in the understanding of the main contributors to our company's success. 
+Using STL forecasting, we visualized our estimated productions per product line for June 2005 - December 2005.
+Across all of our charts we see wide confidence intervals.
+The noise we observed in our residuals is reflected in these confidence intervals.
+The irregularity of our production is reflected within the visualized models.
+Due to the highly uncertain precision of the forecast, the model should be used as a guidance of production ranges as opposed to precise targets.
+For certain production lines, we should anticipate higher production values in August or November for the upcoming holiday seasons.
+Below is our average expected production ranges:\
+\* Classic Cars: 5-20 \* Motorcycles: 15-45 Holidays = 60+ \* Planes: 30-60 Holidays = 90+ \* Ships: 100-140 Holidays = 170+ \* Trains: Data not present.
+\* Trucks and Buses: 25-40 \* Vintage Cars: 35-60 Holidays = 85+
 
 ## *Cost and Profit Analysis*
 Our monthly productions, costs, and profits have already been calculated in our [Data Transformation](#data-transformation) section. The product line costs per units were calculated in [Productline Regression Modeling](#productline-regression-modeling) using R Studios multiple linear regression function. The CPU's were implemented into our datasets by month and product line, then we combined the sales dataset and production data set in [Joining Sales and Monthly Production by Productline](#joining-sales-and-monthly-production-by-productline). Within this section, we gathered our sales per product line by creating individual columns representing the min, average, and max sales per product. Items were sold at varying prices and we will use these three variables to determine price ranges we should stick with. Within the same section our CPU's were subtracted by our selling price to determine our profits. The finalized conjoining and calculations of the data reside within the `Final Sales x Production Productline` CSV. This data set will be used to visualize our cost and profit analyses, and the analysis will be conducted by Bea.
@@ -794,24 +1093,37 @@ Observing the Bar chart, we see for almost every product line we have revenue an
 
 ## *Project Analysis*
 
+Walk through your modeling and analytical processes step by step: - Explain how you aggregated weekly data into monthly forecasts.
+- Justify the forecasting models you selected (e.g., ARIMA, ETS, STL, linear modeling).
+- Present your monthly forecasts for each product line from June–December 2005.
+- Calculate average production cost per product line.
+- Compute average profit per product line.
+- Use the forecasted production quantities and average profit to estimate expected total profit for the second half of 2005.
+- Include the R code used for all calculations, models and visualizations.
 
 ## *Limitations and Assumptions*
+
 While analysis provides strategically grounded projections, several limitations and assumptions should be acknowledged.
 
 ### Assumptions
-- Historical Patterns: Forecasting models assume past production trends and seasonality will persist through December 2005
 
-- Stable Cost Structure: Average cost per unit is assumed to remain consistent throughout the forecast period
+-   Historical Patterns: Forecasting models assume past production trends and seasonality will persist through December 2005
 
-- External Market Influence: The model does not account for micro economic shifts, supply chain disruptions, or fluctuations in demand.
+-   Stable Cost Structure: Average cost per unit is assumed to remain consistent throughout the forecast period
 
-- Accurate Data: All analyses assume historical data is accurate after cleaning and aggregation.
+-   External Market Influence: The model does not account for micro economic shifts, supply chain disruptions, or fluctuations in demand.
+
+-   Accurate Data: All analyses assume historical data is accurate after cleaning and aggregation.
 
 ### Limitations
-- Model simplicity: Time series models do not account for external drivers such as economic fluctuations or competitor activity.
 
-- No Constraints Modeled: Forecasts assume factories can meet projected production levels without constraints.   
-These limitations suggest that ongoing monitoring of actual production is recommended. Forecasts should also be treated as directional guidance rather than guaranteed outcomes.
+-   Model simplicity: Time series models do not account for external drivers such as economic fluctuations or competitor activity.
+
+-   No Constraints Modeled: Forecasts assume factories can meet projected production levels without constraints.\
+    These limitations suggest that ongoing monitoring of actual production is recommended.
+    Forecasts should also be treated as directional guidance rather than guaranteed outcomes.
 
 ## *Concluding Details*
-Provide a written conclusion summarizing your analysis.  Explain which product lines are most profitable, how production is expected to trend through December 2005, and the overall projected profit for Timeless Transport Models.
+
+Provide a written conclusion summarizing your analysis.
+Explain which product lines are most profitable, how production is expected to trend through December 2005, and the overall projected profit for Timeless Transport Models.
