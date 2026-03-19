@@ -65,9 +65,15 @@ To begin refinement we must first import the data sets and any libraries needed 
 -   If you plan on running this Project Notebook, and do not have these packages installed navigate to the R Studio Console and copy/paste the install package you do not yet have.
 
 ``` r
-install.packages("readr")      # Used to read and import data
-install.packages("tidyverse")  # Used to create data visualizations
-install.packages("lubridate")  # Used for weekday conversion
+install.packages("readr")      # Read and import data
+install.packages("tidyverse")  # Data manipulation and visualization
+install.packages("lubridate")  # Date handling and weekday conversion
+install.packages("forecast")   # Time series forecasting
+install.packages("ggplot2")    # Data visualization
+install.packages("dplyr")      # Data transformation
+install.packages("car")        # Companion to Applied Regression
+install.packages("MASS")       # Statistical functions
+install.packages("DT")         # Renders Data Tables
 ```
 
 #### Library Packages to Load
@@ -76,11 +82,12 @@ install.packages("lubridate")  # Used for weekday conversion
 library(readr)
 library(tidyverse)
 library(lubridate)
-library(car)
-library(MASS)
+library(forecast)
 library(ggplot2)
 library(dplyr)
-library(forecast)
+library(car)
+library(MASS)
+library(DT)
 ```
 
 #### Import Data Files
@@ -105,7 +112,7 @@ sales_data$ORDERDATE <- mdy(sales_data$ORDERDATE)
 
 ```
 
-#### Data Transformation
+#### Data Transformation {#data-transformation}
 
 With the data fully imported, we now need to refine the data to sure its accuracy for the conduction of analyses.
 
@@ -171,6 +178,17 @@ production_data$`AGGREGATE_CPU` <- production_data$weekly_cost / production_data
 # The outlier column indicates sections of weekly cost data that deviates from the norm. Create a flag column with 1 indicating that the row has outlieing data
 production_data$outlier_flag <- if_else(production_data$outlier > 0, 1, 0)
 
+# Define colors palette for visualizations
+palette <- c(
+    "Classic_Cars"     = "darkred",
+    "Motorcycles"      = "goldenrod",
+    "Planes"           = "bisque1",
+    "Ships"            = "darkolivegreen",
+    "Trucks_and_Buses" = "gray51",
+    "Trains"           = "darkorange4",
+    "Vintage_Cars"     = "dodgerblue4"
+  )
+
 ```
 
 ### Aggregation by Productline
@@ -197,7 +215,7 @@ weekly_productions_by_productline$AGG_PRODUCT_COSTS <- weekly_productions_by_pro
 weekly_productions_by_productline
 ```
 
-#### Productline Regression Modeling
+#### Productline Regression Modeling {#productline-regression-modeling}
 
 Some issues that arise with the implementation of aggregated costs per unit and calculated productions based on the CPU calculations are the inaccuracies of the calculated metrics.
 This form of calculation leads to over generalization of the data, and can include compounded floating point errors over time.
@@ -367,11 +385,12 @@ However, we will implement our actual profit margins based on our total sales an
 # Implement a Full join of the condensed production data and sales data
 Final_SalesXProduction_Productline <- monthly_productions_factory_X_productline %>%
   full_join(monthly_sales_by_productline,
-            by = c("Month" = "MONTH_ORDERED","PRODUCTLINE"))
+            by = c("Month" = "MONTH_ORDERED","PRODUCTLINE"))%>%
+  mutate(factory_id = as.factor(factory_id))
 # Calculate profits per product
 Final_SalesXProduction_Productline$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$MIN_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
 Final_SalesXProduction_Productline$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$AVG_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
-Final_SalesXProduction_Productline$Max_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$MAX_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
+Final_SalesXProduction_Productline$MAX_PRODUCT_PROFIT <- Final_SalesXProduction_Productline$MAX_PRICE_SOLD - Final_SalesXProduction_Productline$REGRESSION_CPU
             
 # Add Average Revenue per product
 Final_SalesXProduction_Productline$MIN_TOTAL_REVENUE <- Final_SalesXProduction_Productline$TOTAL_SHIPPED * Final_SalesXProduction_Productline$MIN_PRICE_SOLD
@@ -458,14 +477,14 @@ Final_SalesXProduction_Productline$Month <- ym(Final_SalesXProduction_Productlin
 # Calculate profits per product
 Final_SalesXProduction_Month$MIN_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MIN_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
 Final_SalesXProduction_Month$AVG_PRODUCT_PROFIT <- Final_SalesXProduction_Month$AVG_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
-Final_SalesXProduction_Month$Max_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MAX_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
+Final_SalesXProduction_Month$MAX_PRODUCT_PROFIT <- Final_SalesXProduction_Month$MAX_PRICE_SOLD - Final_SalesXProduction_Month$REGRESSION_AVG_CPU
 
-#add Revenue
+# Add Revenue
 Final_SalesXProduction_Month$MIN_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MIN_PRICE_SOLD
 Final_SalesXProduction_Month$AVG_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$AVG_PRICE_SOLD
 Final_SalesXProduction_Month$MAX_TOTAL_REVENUE <- Final_SalesXProduction_Month$TOTAL_SHIPPED * Final_SalesXProduction_Month$MAX_PRICE_SOLD
 
-#add profit
+# Add profit
 Final_SalesXProduction_Month$MIN_TOTAL_PROFIT <- Final_SalesXProduction_Month$MIN_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
 Final_SalesXProduction_Month$AVG_TOTAL_PROFIT <- Final_SalesXProduction_Month$AVG_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
 Final_SalesXProduction_Month$MAX_TOTAL_PROFIT <- Final_SalesXProduction_Month$MAX_TOTAL_REVENUE - Final_SalesXProduction_Month$ACTUAL_MONTHLY_COST
@@ -504,16 +523,16 @@ First we will visualize the total production to see if there are any overarching
 
 ```{r Load and Sort Data, echo = FALSE}
 # Loading the data
-df_total <- read_csv("monthly_salesXproduction.csv", show_col_types = FALSE)
-df_line <- read_csv("monthly_salesXproduction_by_productline.csv", show_col_types = FALSE)
+df_total <- Final_SalesXProduction_Month
+df_line <- Final_SalesXProduction_Productline
 
 # Sort chronologically by month
-df_total <- df_total %>% arrange(MONTH_PRODUCED)
-df_line <- df_line %>% arrange(MONTH_PRODUCED)
+df_total <- df_total %>% arrange(Month)
+df_line <- df_line %>% arrange(Month)
 ```
 
 ```{r Total Monthly Production Over Time, echo = FALSE}
-plot_total <- ggplot(df_total, aes(x = MONTH_PRODUCED, y = MONTHLY_PRODUCTION)) +
+plot_total <- ggplot(df_total, aes(x = Month, y = MONTHLY_PRODUCTION)) +
   geom_line(color = "blue", group = 1) +
   geom_point(color = "blue") +
   labs(title = "Total Monthly Production Over Time",
@@ -532,10 +551,9 @@ There doesn't seem to be much of a pattern there, so let's look at the productio
 ```{r Monthly Production by Product Line Over Time, echo = FALSE}
 df_line_filtered <- df_line %>% 
   drop_na(factory_id) %>% 
-  mutate(factory_label = paste("Factory", factory_id),
-         MONTH_DATE = ym(MONTH_PRODUCED))
+  mutate(factory_label = paste("Factory", factory_id))
 
-plot_productline <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+plot_productline <- ggplot(df_line_filtered, aes(x = Month, y = TOTAL_UNITS_PRODUCED,
                                         color = PRODUCTLINE, group = PRODUCTLINE)) +
   geom_line() +
   geom_point() +
@@ -557,10 +575,9 @@ It's still a bit jumbled, so now we will separate the data by factory.
 df_line_filtered <- df_line %>% 
   # Removing the factory with no data
   drop_na(factory_id) %>% 
-  mutate(factory_label = paste("Factory", factory_id),
-         MONTH_DATE = ym(MONTH_PRODUCED))
+  mutate(factory_label = paste("Factory", factory_id))
 
-plot_productline_faceted <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+plot_productline_faceted <- ggplot(df_line_filtered, aes(x = Month, y = TOTAL_UNITS_PRODUCED,
                                         color = PRODUCTLINE, group = PRODUCTLINE)) +
   geom_line() +
   geom_point() +
@@ -579,14 +596,17 @@ plot_productline_faceted <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOT
 print(plot_productline_faceted)
 ```
 
-Now we can clearly see that Ships have much higher production levels than any of the other product lines, and Classic Cars have distinctly less than any of the others. This is an odd finding, since sales data for those two product lines is inversely proportional to this production data. This could be due to a large back-stock of Classic Cars and a sever shortage of Ships, or it could simply be that the labels on the data columns got switched. The second is more likely but we can't know for sure, so we will bring this up with the stakeholders for further inspection.
+Now we can clearly see that Ships have much higher production levels than any of the other product lines, and Classic Cars have distinctly less than any of the others.
+This is an odd finding, since sales data for those two product lines is inversely proportional to this production data.
+This could be due to a large back-stock of Classic Cars and a sever shortage of Ships, or it could simply be that the labels on the data columns got switched.
+The second is more likely but we can't know for sure, so we will bring this up with the stakeholders for further inspection.
 
 Next we will look for trend patterns and seasonality in our data.
 
 ```{r Time Series Decomposition for Seasonal Patterns and Trends, echo = FALSE}
 # Making a column of Date objects
 df_total = df_total %>% 
-  mutate(MONTH_DATE = ym(MONTH_PRODUCED))
+  mutate(MONTH_DATE = ym(Month))
 
 # Converting to a Time Series object
 start_year <- year(min(df_total$MONTH_DATE))
@@ -622,9 +642,9 @@ for (prod_line in valid_product_lines) {
   df_sub <- df_line %>% 
     filter(PRODUCTLINE == prod_line) %>% 
     # If a month is missing, fill it with 0
-    complete(MONTH_PRODUCED = unique(df_line$MONTH_PRODUCED),
+    complete(Month = unique(df_line$Month),
              fill = list(TOTAL_UNITS_PRODUCED = 0)) %>% 
-    arrange(MONTH_PRODUCED)
+    arrange(Month)
   
   # Create a Time Series object
   prod_ts <- ts(df_sub$TOTAL_UNITS_PRODUCED,
@@ -649,7 +669,9 @@ for (prod_line in valid_product_lines) {
 }
 ```
 
-We can now see that all of the product lines show perfectly repeating seasonal patterns. There is also a general upward trend for the first year and four months, followed by a leveling off and slight decline. The individual product lines all have their own unique trends, however.
+We can now see that all of the product lines show perfectly repeating seasonal patterns.
+There is also a general upward trend for the first year and four months, followed by a leveling off and slight decline.
+The individual product lines all have their own unique trends, however.
 
 Lastly we will determine some basic monthly production data:
 
@@ -659,11 +681,11 @@ cat("Average Monthly Production:\t", round(mean(df_total$MONTHLY_PRODUCTION), 2)
 
 # Find peak production month
 peak_month <- df_total %>% filter(MONTHLY_PRODUCTION == max(MONTHLY_PRODUCTION))
-cat("Peak Production Month:\t\t", peak_month$MONTH_PRODUCED, "with", peak_month$MONTHLY_PRODUCTION, "units\n")
+cat("Peak Production Month:\t\t", peak_month$Month, "with", peak_month$MONTHLY_PRODUCTION, "units\n")
 
 # Find lowest production month
 lowest_month <- df_total %>% filter(MONTHLY_PRODUCTION == min(MONTHLY_PRODUCTION))
-cat("Lowest Production Month:\t", lowest_month$MONTH_PRODUCED, "with", lowest_month$MONTHLY_PRODUCTION, "units\n")
+cat("Lowest Production Month:\t", lowest_month$Month, "with", lowest_month$MONTHLY_PRODUCTION, "units\n")
 
 cat("Total Production by Product Line:\n")
 product_line_summary <- df_line %>% 
@@ -863,21 +885,18 @@ Below is our average expected production ranges:\
 
 ## *Cost and Profit Analysis*
 
-This section examines the historical profitability of each product line using
-the cleaned and joined production and sales data constructed in the Data
-Refinement section. Profit is defined as total sales revenue minus the average
-production cost including the factory base cost:
+##### Analysis by Kainen
+
+This section examines the historical profitability of each product line using the cleaned and joined production and sales data constructed in the Data Refinement section.
+Profit is defined as total sales revenue minus the average production cost including the factory base cost:
 
 **Profit = Total Sales - Average Production Cost (with Factory Base)**
 
-This definition accounts for both the variable cost of producing each unit
-and the fixed operational base cost attributed to the factory, as isolated
-by the master regression model.
+This definition accounts for both the variable cost of producing each unit and the fixed operational base cost attributed to the factory, as isolated by the master regression model.
 
 ### Historical Profit by Product Line
 
-The table below summarises the total historical profit generated by each
-product line across all available months (January 2003 -- May 2005).
+The table below summarizes the total historical profit generated by each product line across all available months (January 2003 -- May 2005).
 
 ```{r Kainen_Historical_Profit}
 fmt_dollar <- function(x) paste0("$", format(round(x), big.mark = ","))
@@ -903,11 +922,8 @@ print(historical_profit, row.names = FALSE)
 
 #### Average Profit Per Unit by Product Line
 
-To project future profitability from forecasted production volumes, we need
-to know how much profit each unit of production generates on average. This
-is calculated by dividing the monthly actual profit by the number of units
-produced in that month, then averaging across all months where both figures
-are available. 
+To project future profitability from forecasted production volumes, we need to know how much profit each unit of production generates on average.
+This is calculated by dividing the monthly actual profit by the number of units produced in that month, then averaging across all months where both figures are available.
 
 ```{r Kainen_PPU}
 profit_per_unit <- Final_SalesXProduction_Productline %>%
@@ -934,7 +950,8 @@ print(ppu_table, row.names = FALSE)
 ```
 
 #### Historical Profit Visualizations
-```{r Kainen_Historical_Profit}
+
+```{r Kainen_Historical_Profits}
 plot_data <- Final_SalesXProduction_Productline %>%
   filter(!is.na(ACTUAL_TOTAL_PROFIT), !is.na(Month))
 
@@ -958,6 +975,7 @@ profit_per_unit$PRODUCTLINE <- reorder(profit_per_unit$PRODUCTLINE,
 ggplot(profit_per_unit,
        aes(x = avg_profit_per_unit / 1e3, y = PRODUCTLINE, fill = PRODUCTLINE)) +
   geom_col(width = 0.6, show.legend = FALSE) +
+  scale_fill_manual(values = palette) +
   scale_x_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title = "Average Profit Per Unit by Product Line",
        x     = "Avg Profit Per Unit (USD Thousands)",
@@ -965,18 +983,255 @@ ggplot(profit_per_unit,
   theme_minimal()
 ```
 
+##### Analysis by Bea
+
+Our monthly productions, costs, and profits have already been calculated in our [Data Transformation](#data-transformation) section.
+The product line costs per units were calculated in [Productline Regression Modeling](#productline-regression-modeling) using R Studios multiple linear regression function.
+The CPU's were implemented into our datasets by month and product line, then we combined the sales dataset and production data set in [Joining Sales and Monthly Production by Productline](#joining-sales-and-monthly-production-by-productline).
+Within this section, we gathered our sales per product line by creating individual columns representing the min, average, and max sales per product.
+Items were sold at varying prices and we will use these three variables to determine price ranges we should stick with.
+Within the same section our CPU's were subtracted by our selling price to determine our profits.
+The finalized conjoining and calculations of the data reside within the `Final Sales x Production Productline` CSV. This data set will be used to visualize our cost and profit analyses, and the analysis will be conducted by Bea.
+
+```{r final_dataset_Bea, echo = FALSE}
+datatable(Final_SalesXProduction_Productline,
+          options = list(
+            scrollX = TRUE,
+            fixedHeader = TRUE,
+            scrollY = "400px",
+            paging = TRUE,
+            pageLength = 10
+          ) )
+```
+
+First is the analysis of our cost per product line...
+
+```{r product_cost_Bea, echo = FALSE}
+Final_SalesXProduction_Productline %>%
+    filter(PRODUCTLINE != "Trains") %>%
+  group_by(PRODUCTLINE) %>%                                       
+  summarise(REGRESSION_CPU = mean(REGRESSION_CPU, na.rm = TRUE)) %>% 
+     ggplot(aes(x = PRODUCTLINE, y = REGRESSION_CPU, fill = PRODUCTLINE))+
+     geom_col()+
+  geom_text(aes(label = scales::dollar(REGRESSION_CPU)), vjust = 1.5, color = 'gray6', size = 3)+
+     scale_fill_manual(values = palette) +
+     scale_y_continuous(labels = scales::dollar_format())+
+  labs(
+    title = "CPU by Product Line",
+    y = "CPU")+
+  theme_minimal()+
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The Bar chart portrays our product line cost per unit.
+We see that Trucks and Buses are our highest costed items to produce, costing `$91`.
+Classic cars rise to second at `$83.73` and Planes are our third highest costing at `$83.10`.
+Noteably, ships are our lowest costing products at `$15.91`.
+Which is an incredible rate.
+
+```{r cost_productline_visuals_Bea, echo = FALSE}
+Final_SalesXProduction_Productline %>%
+  filter(PRODUCTLINE != "Trains") %>%
+  ggplot(aes(x = factory_id, y = AVG_PRODUCTION_COST_W_BASE, fill = PRODUCTLINE)) +
+  geom_boxplot() +
+  scale_fill_manual(values = palette) +
+  scale_y_continuous(labels = scales::dollar_format())+
+  labs(
+    title = "Avg Production Cost by Factory",
+    y     = "Avg Production Cost"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0)
+  )
+
+Final_SalesXProduction_Productline %>%
+  filter(PRODUCTLINE != "Trains") %>%
+  ggplot(aes(x = factory_id, y = TOTAL_UNITS_PRODUCED, fill = PRODUCTLINE)) +
+  geom_boxplot() +
+  scale_fill_manual(values = palette) +
+  labs(
+    title = "Avg Production Counts by Factory",
+    y     = "Avg Production Counts"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0)
+  )
+
+
+```
+
+When we observe our production costs by factory and product line, we see that factory 2 has the highest average production costs, maxing over `$7,000` per production type.
+The average production costs for factory 2 appear appropriate with the two product types, Vintage Cars and Planes, having the second highest production counts coinciding with the higher production costs of planes.
+Planes have the third highest CPU, but are constructed in the same facility as our second lowest CPU item, Vintage Cars.
+We may be seeing the heavy production costs of planes influencing Vintage Cars, putting them on similar average production cost levels, regardless of the low CPU Vintage cars have.
+Despite Classic Cars high production costs, we have very low production counts.
+We can observe why this case may be because its average production counts lie below 25 units per production.
+Surprisingly, we have very average production costs for ships even though they have the highest production counts.
+Our remaining products average in production ranges between 25-75 and their average production costs range between `$2,000 - $6,000`.
+We have a clear idea of our production costs, now we would like to analyze our revenue and profits...
+
+```{r finance_bars_Bea, echo = FALSE}
+plot <- Final_SalesXProduction_Productline %>%
+  group_by(PRODUCTLINE) %>%
+  summarise(
+    MIN_Costs   = min(AVG_PRODUCTION_COST_W_BASE, na.rm = TRUE),
+    AVG_Costs   = mean(AVG_PRODUCTION_COST_W_BASE, na.rm = TRUE),
+    MAX_Costs   = max(AVG_PRODUCTION_COST_W_BASE, na.rm = TRUE),
+    AVG_Revenue = mean(AVG_TOTAL_REVENUE, na.rm = TRUE),
+    MIN_Revenue = mean(MIN_TOTAL_REVENUE, na.rm = TRUE),
+    MAX_Revenue = mean(MAX_TOTAL_REVENUE, na.rm = TRUE),
+    AVG_Profit  = mean(AVG_TOTAL_PROFIT, na.rm = TRUE),
+    MIN_Profit  = mean(MIN_TOTAL_PROFIT, na.rm = TRUE),
+    MAX_Profit  = mean(MAX_TOTAL_PROFIT, na.rm = TRUE)
+  ) %>%
+  mutate(across(everything(), ~ifelse(is.nan(.) | is.infinite(.), NA, .))) %>%
+  pivot_longer(
+    cols      = everything() & !PRODUCTLINE,
+    names_to  = c("Stat", "Metric"),
+    names_sep = "_",
+    values_to = "Value"
+  ) %>%
+  pivot_wider(names_from = Stat, values_from = Value) %>%  # spreads AVG/MIN/MAX back into columns
+  ggplot(aes(x = PRODUCTLINE, y = AVG, fill = Metric)) +
+  geom_col(position = "dodge") +
+  geom_errorbar(aes(ymin = MIN, ymax = MAX),
+                position = position_dodge(0.9), width = 0.25) +
+  
+  scale_fill_manual(values = c(
+    "Profit" = "goldenrod3",
+    "Revenue" = "darkolivegreen",
+    "Costs" = "saddlebrown"
+  ))+
+  scale_y_continuous(labels = scales::dollar_format()) +
+  labs(title = "Average Revenue vs Profit by Product Line", y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(
+    axis.title.x    = element_blank(),
+    axis.text.x     = element_text(angle = 45, hjust = 1),
+    plot.title      = element_text(hjust = 0),
+    legend.position = "top"
+  )
+#Suppress the missing values warning coming from trains lack of data
+suppressWarnings(print(plot))
+```
+
+```{r long_hist_expenses_Bea, echo = FALSE}
+# Pivot the item profit to long format
+plot_profit_price <- Final_SalesXProduction_Productline %>%
+  dplyr::select(PRODUCTLINE, MIN_PRODUCT_PROFIT, AVG_PRODUCT_PROFIT, MAX_PRODUCT_PROFIT) %>%
+  # Remove rows where profit is missing
+  filter(!is.na(AVG_PRODUCT_PROFIT)) %>% 
+  pivot_longer(
+    cols = ends_with("PRODUCT_PROFIT"), 
+    names_to = "Profit_Type", 
+    values_to = "Profit_Value"
+  ) %>%
+  mutate(Profit_Type = gsub("_PRODUCT_PROFIT", "", Profit_Type))
+
+# Pivot item price sold to long format
+plot_sold_price <- Final_SalesXProduction_Productline %>%
+  dplyr::select(PRODUCTLINE, MIN_PRICE_SOLD, AVG_PRICE_SOLD, MAX_PRICE_SOLD) %>%
+  # Remove rows where profit is missing
+  filter(!is.na(AVG_PRICE_SOLD)) %>% 
+  pivot_longer(
+    cols = ends_with("PRICE_SOLD"), 
+    names_to = "Sale_Type", 
+    values_to = "Sale_Value"
+  ) %>%
+  mutate(Sale_Type = gsub("_PRICE_SOLD", "", Sale_Type))
+
+# Combine the two sets
+combine <- plot_profit_price %>%
+  rename(Type = Profit_Type, Value = Profit_Value) %>%
+  mutate(Metric = "Profit") %>%
+  bind_rows(
+    plot_sold_price %>%
+      rename(Type = Sale_Type, Value = Sale_Value) %>%
+      mutate(Metric = "Sale Price"))%>%
+      group_by(PRODUCTLINE, Metric, Type) 
+
+# create a cpu lookup
+cpu_lookup <- Final_SalesXProduction_Productline %>%
+  filter(PRODUCTLINE != "Trains") %>%
+  group_by(PRODUCTLINE) %>%
+  summarise(CPU = first(REGRESSION_CPU), .groups = "drop")
+
+```
+
+```{r gouped_histogram_Bea, echo = FALSE}
+
+ggplot(combine, aes(x = PRODUCTLINE, y = Value, fill = Metric)) +
+  geom_boxplot(outlier.alpha = 0.8, width = 0.6) +
+  geom_point(
+  # Use CPU data exclusively
+  data = cpu_lookup,                 
+  aes(x = PRODUCTLINE, y = CPU, color = "CPU"),
+  # Ignore parent AES
+  inherit.aes = FALSE,            
+  shape = 23,
+  fill = "darkorange",
+  size = 3,
+  position = position_nudge(x = 0.35)
+)+
+  scale_fill_manual(values = c(
+    "Profit" = "goldenrod3",
+    "Sale Price" = "darkolivegreen"
+  ))+
+  # Add CPU color for legend
+  scale_color_manual(
+  name   = "Measure",         
+  values = c("CPU" = "darkorange4")
+) +
+# Add both boxes and diamonds to legend
+guides(
+  fill  = guide_legend(override.aes = list(shape = NA)),  
+  color = guide_legend(override.aes = list(shape = 23, fill = "darkorange")) 
+)+
+  scale_y_continuous(labels = scales::dollar_format())+
+  theme_minimal() +
+  labs(
+    title = "Finance Range by Product Line",
+    subtitle = "Diamonds Indicate Production Cost",
+    y = "Expenses per Unit",
+    x = "Product",
+    fill = "Measure"
+  ) +
+  # Tilt x axis
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+Observing the Bar chart, we see for almost every product line we have revenue and profits exceed an average of `$30,000`.
+Classic Cars is our highest profiting item, yet we previously observed that it is one of the highest costing items to produce with the lowest amount of production occurring.
+We also note that Ships are our highest produced item with the lowest cost, and it has one of the lowest average profit and revenue.
+Our lowest revenue occurs from trains, using the only data we had available.
+Based on our production costs, production numbers, and average finances, there appears to be a discrepancy between our production and sales data.
+This may be due to a back stock of items already produced, and we are selling large quantities of back stocked products.
+We can also note in our finance ranges that our selling points per unit have dropped below our production costs per unit.
+The Box and Whisker indicates that we have negative profits per unit based on the selling points.
+Despite the implications that we are loosing money per unit, our sales appear unaffected.
+Furthering that there is something off with our production data, and it's correlation could lie within back stocked items..
+While our production data appears to have questionable results, we can confirm that we have substantially high profits per product line, but Trains and Ships are our least profitable.
+We can also conclude that there are instances in which we are selling below our production costs per unit, and should avoid selling below that mark.
+
 ## *Forecasting Profits*
 
-Using the STL production forecasts generated in the Forecasting Production
-section and the average profit per unit calculated above, we project total
-expected profit for each product line from June to December 2005.
+Using the STL production forecasts generated in the Forecasting Production section and the average profit per unit calculated above, we project total expected profit for each product line from June to December 2005.
 
-**Formula:**
-> Projected Monthly Profit = Forecasted Units x Average Profit Per Unit
+**Formula:** \> Projected Monthly Profit = Forecasted Units x Average Profit Per Unit
 
-This calculation is applied for each product line across all seven forecast
-months. The 80% prediction intervals from the STL model are carried through
-to provide a lower and upper bound on each profit estimate.
+This calculation is applied for each product line across all seven forecast months.
+The 80% prediction intervals from the STL model are carried through to provide a lower and upper bound on each profit estimate.
 
 #### Step 1: Re-extract STL Forecast Values
 
@@ -1011,7 +1266,8 @@ for (pl in pl_forecast) {
 ```
 
 #### Step 2: Monthly Profit Projection Table
-```{r monthly_profit_Projection_table}
+
+```{r Kainen_monthly_profit_Projection_table}
 fmt_dollar <- function(x) paste0("$", format(round(x), big.mark = ","))
 
 forecast_months <- seq(as.Date("2005-06-01"), as.Date("2005-12-01"), by = "month")
@@ -1050,13 +1306,11 @@ colnames(detail) <- c("Product Line", "Month", "Forecast Units",
 print(detail, row.names = FALSE)
 ```
 
-The table shows forecasted units, average profit per unit, and resulting
-projected profit for each product line across each month from June to
-December 2005.
+The table shows forecasted units, average profit per unit, and resulting projected profit for each product line across each month from June to December 2005.
 
 #### Step 3: Total Expected Profit by Product Line (Jun--Dec 2005)
 
-```{r Total_expected_profit_product}
+```{r Kainen_Total_expected_profit_product}
 profit_by_pl <- aggregate(
   cbind(total_units  = forecast,
         total_profit = projected_profit,
@@ -1076,12 +1330,12 @@ colnames(pl_out) <- c("Product Line", "Total Forecast Units",
 print(pl_out, row.names = FALSE)
 ```
 
-Monthly projections are summed across the full seven-month window to give
-the total expected profit per product line. The 80% prediction interval
+Monthly projections are summed across the full seven-month window to give the total expected profit per product line.
+The 80% prediction interval
 
 #### Step 4: Total Expected Profit by Factory (Jun--Dec 2005)
 
-```{r Total_expected_profit_factory}
+```{r Kainen_Total_expected_profit_factory}
 factory_map <- unique(Final_SalesXProduction_Productline[
   !is.na(Final_SalesXProduction_Productline$factory_id),
   c("PRODUCTLINE", "factory_id")
@@ -1114,12 +1368,12 @@ print(fac_out[, c("Factory", "Product Lines",
                    "Projected Profit", "80% CI Lower", "80% CI Upper")],
       row.names = FALSE)
 ```
-Product lines are grouped by the factory that produces them to show which
-facility is expected to contribute most to company performance in the second
-half of 2005.
+
+Product lines are grouped by the factory that produces them to show which facility is expected to contribute most to company performance in the second half of 2005.
 
 #### Step 5: Overall Company Total
-```{r Overall_total}
+
+```{r Kainen_Overall_total}
 overall_profit <- sum(fc_profit$projected_profit, na.rm = TRUE)
 overall_lo80   <- sum(fc_profit$profit_lo80,      na.rm = TRUE)
 overall_hi80   <- sum(fc_profit$profit_hi80,      na.rm = TRUE)
@@ -1132,18 +1386,17 @@ cat(sprintf("  80%% CI Lower   : %s\n", fmt_dollar(overall_lo80)))
 cat(sprintf("  80%% CI Upper   : %s\n", fmt_dollar(overall_hi80)))
 ```
 
-The overall company total reflects the cumulative uncertainty across all six
-product lines. The gap between the lower and upper bounds is wide, consistent
-with the noisy production history observed in the STL decompositions. These
-figures should be treated as a directional range rather than precise targets.
-
+The overall company total reflects the cumulative uncertainty across all six product lines.
+The gap between the lower and upper bounds is wide, consistent with the noisy production history observed in the STL decompositions.
+These figures should be treated as a directional range rather than precise targets.
 
 #### Profit Projection Visualizations
-```{r Profit_Projection_Visuals fig.height=5, fig.width=9}
+
+```{r Kainen_Profit_Projection_Visuals, fig.height=5, fig.width=9}
 ggplot(fc_profit, aes(x = month_label, y = projected_profit / 1e3,
                        fill = product_line)) +
   geom_col(width = 0.7) +
-  scale_fill_brewer(palette = "Dark2") +
+  scale_fill_manual(values = palette) +
   scale_y_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title   = "Projected Monthly Profit by Product Line (Jun-Dec 2005)",
        x       = NULL,
@@ -1159,7 +1412,7 @@ profit_by_pl$product_line <- reorder(profit_by_pl$product_line,
 ggplot(profit_by_pl, aes(x = total_profit / 1e3, y = product_line,
                           fill = as.character(product_line))) +
   geom_col(width = 0.6, show.legend = FALSE) +
-  scale_fill_brewer(palette = "Dark2") +
+  scale_fill_manual(values = palette) +
   scale_x_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title   = "Total Projected Profit by Product Line (Jun-Dec 2005)",
        x       = "Total Projected Profit (USD Thousands)",
@@ -1174,7 +1427,7 @@ profit_factory_pl <- aggregate(projected_profit ~ factory_label + product_line,
 ggplot(profit_factory_pl, aes(x = factory_label, y = projected_profit / 1e3,
                                fill = product_line)) +
   geom_col(width = 0.6) +
-  scale_fill_brewer(palette = "Dark2") +
+  scale_fill_manual(values = palette) +
   scale_y_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title   = "Total Projected Profit by Factory and Product Line (Jun-Dec 2005)",
        x       = NULL,
@@ -1183,16 +1436,6 @@ ggplot(profit_factory_pl, aes(x = factory_label, y = projected_profit / 1e3,
        caption = paste0("Company Total: $", round(overall_profit / 1e3, 1))) +
   theme_minimal()
 ```
-
-## *Project Analysis*
-
-Walk through your modeling and analytical processes step by step: - Explain how you aggregated weekly data into monthly forecasts.
-- Justify the forecasting models you selected (e.g., ARIMA, ETS, STL, linear modeling).
-- Present your monthly forecasts for each product line from June–December 2005.
-- Calculate average production cost per product line.
-- Compute average profit per product line.
-- Use the forecasted production quantities and average profit to estimate expected total profit for the second half of 2005.
-- Include the R code used for all calculations, models and visualizations.
 
 ## *Limitations and Assumptions*
 
@@ -1218,5 +1461,13 @@ While analysis provides strategically grounded projections, several limitations 
 
 ## *Concluding Details*
 
-Provide a written conclusion summarizing your analysis.
-Explain which product lines are most profitable, how production is expected to trend through December 2005, and the overall projected profit for Timeless Transport Models.
+Through data refinement, exploratory analysis, time series decomposition, regression-based cost modeling, and STL forecasting, our team delivered a comprehensive picture of the company's operational and financial standing.
+Classic Cars emerged as the most profitable product line, consistently generating revenue and profit figures exceeding \$30,000 per period despite a relatively high production cost of \$83.73 per unit.
+Ships, while the highest-volume and lowest-cost product to manufacture at \$15.91 per unit, ranked among the least profitable due to lower selling prices.
+Trains lacked sufficient data for meaningful analysis, and Trucks and Buses — carrying the highest CPU at \$91 — require careful margin management.
+Notably, individual item analyses revealed instances of items being sold below production cost, and we should establish a price floor policy to protect margins going forward.
+All product lines exhibit clear seasonal patterns, with production expected to spike during August and the November–December holiday period.
+STL forecasting was selected as the most appropriate model given the irregular, non-linear nature of the production data. Wide confidence intervals across all forecasts reflect inherent volatility. Therefore, forecasts should be treated as directional ranges rather than fixed targets.
+Ships are expected to lead volume at 100–170+ units per month, while Classic Cars will remain low-volume but high-value.
+The observed inverse relationship between Classic Cars (low production, high sales) and Ships (high production, lower sales) suggests further review, as our back stock could affect revenue projections.
+Overall, Timeless Transport Models is well-positioned for sustained profitability through year-end 2005.Moving forward, the team recommends adding floor values above CPU for sale ranges, and to anticipate high production volumes during seasonal periods of August, and November to December.
