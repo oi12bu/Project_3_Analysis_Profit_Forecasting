@@ -6,8 +6,9 @@ output: html_document
 ---
 
 # Project 3 Production Notebook
-This notebook will entail all team members work including data refinement, forecasting productions, and statistic generations. Team member contributions will be divided into sections containing that specific persons work.
-## ---------- Import Libraries ---------------------
+
+This notebook will entail all team members work including data refinement, forecasting productions, and statistic generations. Team member contributions will be divided into sections containing that specific persons work. \## ---------- Import Libraries ---------------------
+
 ```{r}
 library(tidyverse)
 library(readr)       # Both readr and lubridate should be included already when installing tidyverse
@@ -17,6 +18,7 @@ library(tseries)
 ```
 
 ## ---------- Production Data Refinement ---------------------
+
 ```{r production_refinement_Bea}
 # Import data, convert weeks into date datatype
 production_data <- read_csv('CSV/weekly_factory_production.csv',
@@ -46,7 +48,9 @@ production_data$TOTAL_UNITS <- production_data$Classic_Cars + production_data$Mo
 # Calculate item production costs
 production_data$`AGGREGATE_CPU` <- production_data$weekly_cost / production_data$TOTAL_UNITS
 ```
+
 ##-----------Sales Data implementation------------
+
 ```{r}
 # Import sales data, Convert N/A values back to North America, and format date
 sales_data <- read_csv("CSV/sales_data_sample_cleaned.csv")
@@ -61,16 +65,18 @@ sales_data <- sales_data %>%
 
 ```
 
-
 ## ---------------Regression Model for Productline Prices----------------
-We would like to determine the actual cost per unit not based on aggregated data. 
-A multiple linear regression model will assist in the isolation of each product cost under consideration that labor, cost of electricity, etc are consistent.
+
+We would like to determine the actual cost per unit not based on aggregated data. A multiple linear regression model will assist in the isolation of each product cost under consideration that labor, cost of electricity, etc are consistent.
+
 ```{r product_regression_Bea}
 regression_products <- lm(data = production_data, weekly_cost ~ Classic_Cars + Motorcycles +
                             Planes + Ships + Trucks_and_Buses + Vintage_Cars)
 summary(regression_products)
 ```
+
 Testing the models by factory
+
 ```{r production_by_factory_Bea}
 F0_Production <- production_data %>% filter(factory_id == "0")
 F1_Production <- production_data %>% filter(factory_id == "1")
@@ -98,7 +104,9 @@ par(mfrow=c(2,2))
 plot(Master_Regression)
 par(mfrow=c(1,1))
 ```
+
 ## -----------Convert dataset into long format---------------------
+
 ```{r production_long_format_Bea}
 # Crate a long format of production data
 weekly_productions_by_productline <- production_data %>% 
@@ -142,7 +150,9 @@ weekly_productions_by_productline
 ```
 
 ## -------------Summarize weekly production into Monthly-------------------------
+
 Condense the data set into a monthly data set instead of a weekly dataset. Implement regression model information into the dataset
+
 ```{r condensed_regression_data_Bea}
 # condense the data by month and product line
 monthly_productions_factory_X_productline <- weekly_productions_by_productline %>%
@@ -179,8 +189,8 @@ monthly_productions_factory_X_productline
 
 ```
 
-#----------AGGREGATE MONTLHY DATA-----------
-Note: Regression monthly calculations could be refined more
+#----------AGGREGATE MONTLHY DATA----------- Note: Regression monthly calculations could be refined more
+
 ```{r Monthly_refinement_Bea}
 #Calculate average price by product type- used for product monthly data
 monthly_sales_by_productline <- sales_data %>%
@@ -215,7 +225,9 @@ Final_SalesXProduction_Productline$ACTUAL_TOTAL_PROFIT <- Final_SalesXProduction
 
 Final_SalesXProduction_Productline
 ```
+
 Aggregate monthly sales no product line
+
 ```{r}
 #predicted weekly costs
 production_data$PREDICTED_WEEKLY_COST <- predict(Master_Regression, newdata = production_data)
@@ -268,16 +280,16 @@ Final_SalesXProduction_Month$ACTUAL_TOTAL_PROFIT <- Final_SalesXProduction_Month
 ```
 
 ## ----------Export the Datasets for Visualizing-----------
+
 ```{r}
-write_csv(Final_SalesXProduction_Productline, file.choose(new = TRUE))
-write_csv(Final_SalesXProduction_Month, file.choose(new = TRUE))
+# write_csv(Final_SalesXProduction_Productline, file.choose(new = TRUE))
+# write_csv(Final_SalesXProduction_Month, file.choose(new = TRUE))
 ```
 
-
-
-
 ## ---------- Bea's Production ---------------------
+
 Forcast expected productline sales from june 2005 - December 2005
+
 ```{r}
 
 # Group the data by date and product for time series
@@ -355,7 +367,9 @@ product_lines <- unique(monthly_data$PRODUCTLINE)
 results <- map(product_lines, production_model)
 results <- results[!sapply(results, is.null)]
 ```
+
 #### Orders per product line Time series
+
 ```{r}
 forecast_production <- function(product_line) {
   submodel <- monthly_data %>%
@@ -402,7 +416,196 @@ results <- results[!sapply(results, is.null)]
 print(results)
 ```
 
-## ---------- Eltons's Production ---------------------
+## ---------- Elton's Production ---------------------
 
+### EDA
+
+#### Production Trends Over Time
+
+```{r Load and Sort Data}
+# Loading the data
+df_total <- read_csv("monthly_salesXproduction.csv", show_col_types = FALSE)
+df_line <- read_csv("monthly_salesXproduction_by_productline.csv", show_col_types = FALSE)
+
+# Sort chronologically by month
+df_total <- df_total %>% arrange(MONTH_PRODUCED)
+df_line <- df_line %>% arrange(MONTH_PRODUCED)
+```
+
+```{r Total Monthly Production Over Time}
+plot_total <- ggplot(df_total, aes(x = MONTH_PRODUCED, y = MONTHLY_PRODUCTION)) +
+  geom_line(color = "blue", group = 1) +
+  geom_point(color = "blue") +
+  labs(title = "Total Monthly Production Over Time",
+       x = "Month Produced",
+       y = "Total Units Produced") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  # Making x-axis labels more readable
+  scale_x_discrete(breaks = function(x) x[seq(1, length(x), 
+                      by = max(1, floor(length(x)/15)))])
+print(plot_total)
+```
+
+```{r Monthly Production by Product Line Over Time, echo = FALSE}
+df_line_filtered <- df_line %>% 
+  drop_na(factory_id) %>% 
+  mutate(factory_label = paste("Factory", factory_id),
+         MONTH_DATE = ym(MONTH_PRODUCED))
+
+plot_productline <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+                                        color = PRODUCTLINE, group = PRODUCTLINE)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Monthly Production by Product Line Over Time",
+       x = "Month Produced",
+       y = "Units Produced",
+       color = "Product Line") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_date(date_breaks = "2 months", date_labels = "%b `%y")
+
+print(plot_productline)
+```
+
+```{r Monthly Production by Product Line Over Time (Faceted by Factory), echo = FALSE}
+# Making cleaner labels
+df_line_filtered <- df_line %>% 
+  # Removing the factory with no data
+  drop_na(factory_id) %>% 
+  mutate(factory_label = paste("Factory", factory_id),
+         MONTH_DATE = ym(MONTH_PRODUCED))
+
+plot_productline_faceted <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+                                        color = PRODUCTLINE, group = PRODUCTLINE)) +
+  geom_line() +
+  geom_point() +
+  # Splitting the plot by factory
+  facet_wrap(~ factory_label) +
+  labs(title = "Monthly Production by Product Line Over Time (By Factory)",
+       x = "Month Produced",
+       y = "Units Produced",
+       color = "Product Line") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        strip.text = element_text(face = "bold")) +
+  # Easier to read label formatting, every four months for space savings
+  scale_x_date(date_breaks = "4 months", date_labels = "%b `%y")
+
+print(plot_productline_faceted)
+```
+
+#### Seasonality / Trend Patterns
+
+```{r Time Series Decomposition for Seasonal Patterns and Trends}
+# Making a column of Date objects
+df_total = df_total %>% 
+  mutate(MONTH_DATE = ym(MONTH_PRODUCED))
+
+# Converting to a Time Series object
+start_year <- year(min(df_total$MONTH_DATE))
+start_month <- month(min(df_total$MONTH_DATE))
+
+# Frequency of 12 for 12 months
+production_ts <- ts(df_total$MONTHLY_PRODUCTION,
+                    start = c(start_year, start_month),
+                    frequency = 12)
+
+# STL to split into Seasonality, Trend, and Remainder
+decomposition <- stl(production_ts, s.window = "periodic")
+plot_decomp <- autoplot(decomposition) +
+  theme_minimal() +
+  labs(title = "Time Series Decomposition of Total Monthly Production")
+
+print(plot_decomp)
+```
+
+```{r Time Series Decomposition by Product Line}
+# Ignoring product lines with no production, i.e. Trains
+valid_product_lines <- df_line %>% 
+  group_by(PRODUCTLINE) %>% 
+  summarize(total = sum(TOTAL_UNITS_PRODUCED, na.rm = TRUE)) %>% 
+  filter(total > 0) %>% 
+  pull(PRODUCTLINE)
+
+# Loop through each valid product line to generate plots
+for (prod_line in valid_product_lines) {
+  # Filter and prepare data for the specific product line
+  df_sub <- df_line %>% 
+    filter(PRODUCTLINE == prod_line) %>% 
+    # If a month is missing, fill it with 0
+    complete(MONTH_PRODUCED = unique(df_line$MONTH_PRODUCED),
+             fill = list(TOTAL_UNITS_PRODUCED = 0)) %>% 
+    arrange(MONTH_PRODUCED)
+  
+  # Create a Time Series object
+  prod_ts <- ts(df_sub$TOTAL_UNITS_PRODUCED,
+                start = c(start_year, start_month),
+                frequency = 12)
+  # Plot Decomposition
+  decomp <- stl(prod_ts, s.window = "periodic")
+  plot_decomp <- autoplot(decomp) +
+    theme_minimal() +
+    labs(title = paste("Time Series Decomposition of Monthly Production:", prod_line))
+  
+  print(plot_decomp)
+  
+  # Plot Seasonal Plot
+  plot_season <- ggseasonplot(prod_ts, year.labels = TRUE, continuous = TRUE) +
+  theme_minimal() +
+  labs(title = paste("Seasonal Plot:", prod_line),
+       y = "Units Produced",
+       x = "Month")
+  
+  print(plot_season)
+}
+```
+
+#### Descriptive Statistics
+
+-   Factory
+
+```{r}
+
+```
+
+-   Product Line
+
+-   Month
+
+```{r Monthly Production Statistics}
+# Calculating average monthly production
+cat("Average Monthly Production:\t", round(mean(df_total$MONTHLY_PRODUCTION), 2), "units\n")
+
+# Find peak production month
+peak_month <- df_total %>% filter(MONTHLY_PRODUCTION == max(MONTHLY_PRODUCTION))
+cat("Peak Production Month:\t\t", peak_month$MONTH_PRODUCED, "with", peak_month$MONTHLY_PRODUCTION, "units\n")
+
+# Find lowest production month
+lowest_month <- df_total %>% filter(MONTHLY_PRODUCTION == min(MONTHLY_PRODUCTION))
+cat("Lowest Production Month:\t", lowest_month$MONTH_PRODUCED, "with", lowest_month$MONTHLY_PRODUCTION, "units\n")
+
+cat("Total Production by Product Line:\n")
+product_line_summary <- df_line %>% 
+  group_by(PRODUCTLINE) %>% 
+  summarize(TOTAL_PRODUCED = sum(TOTAL_UNITS_PRODUCED, na.rm = TRUE)) %>% 
+  arrange(desc(TOTAL_PRODUCED))
+
+print(product_line_summary)
+```
+
+#### Discussion
+
+-   Are trends visible?
+
+    -   Yes, overall there is a strong upward trend for the first year and four months, followed by a leveling out and then small decrease.
+
+-   Are there seasonal effects?
+
+    -   All of the product lines show perfectly repeating seasonal patterns.
+
+-   Do product lines differ substantially?
+
+    -   The biggest outliers here are Ships with significantly higher production levels, and Classic Cars with significantly lower production levels. This is opposite of their relationship within sales data, so it is surprising.
 
 ## ---------- Kainen's Production ---------------------
