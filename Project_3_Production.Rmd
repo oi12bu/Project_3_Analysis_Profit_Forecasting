@@ -624,17 +624,17 @@ Final_SalesXProduction_Productline$date <- as.Date(
 # Color palette used across all of Kainen's plots
 # Codes are taken from online.
 PALETTE <- c(
-  "Classic Cars"     = "#E63946",
+  "Classic_Cars"     = "#E63946",
   "Motorcycles"      = "#457B9D",
   "Planes"           = "#2A9D8F",
   "Ships"            = "#E9C46A",
-  "Trucks and Buses" = "#6A0572",
-  "Vintage Cars"     = "#264653"
+  "Trucks_and_Buses" = "#6A0572",
+  "Vintage_Cars"     = "#264653"
 )
 
 # Product lines with tracked production
-product_lines <- c("Classic Cars", "Motorcycles", "Planes",
-                   "Ships", "Trucks and Buses", "Vintage Cars")
+product_lines <- c("Classic_Cars", "Motorcycles", "Planes",
+                   "Ships", "Trucks_and_Buses", "Vintage_Cars")
 
 forecast_horizon <- 7
 ```
@@ -644,6 +644,7 @@ forecast_horizon <- 7
 This converts the cleaned product-line dataframe into one time series object per
 product line.
 
+
 ```{r kainen_build_ts}
 ts_list <- list()
 
@@ -652,6 +653,11 @@ for (pl in product_lines) {
     filter(PRODUCTLINE == pl, !is.na(TOTAL_UNITS_PRODUCED)) %>%
     arrange(date)
 
+  if (nrow(pl_data) == 0) {
+    cat(sprintf("%-20s  SKIPPED -- no production data\n", pl))
+    next
+  }
+
   ts_list[[pl]] <- ts(
     pl_data$TOTAL_UNITS_PRODUCED,
     start     = c(year(min(pl_data$date)), month(min(pl_data$date))),
@@ -659,9 +665,12 @@ for (pl in product_lines) {
   )
 }
 
+# Update product_lines to only those with a valid ts object
+product_lines <- names(ts_list)
+
 # Print coverage for each series
 for (pl in product_lines) {
-  cat(sprintf("%s:  start = %s  end = %s  n = %d obs\n",
+  cat(sprintf("%-20s  start = %s  end = %s  n = %d obs\n",
               pl,
               paste(start(ts_list[[pl]]), collapse = "-"),
               paste(end(ts_list[[pl]]),   collapse = "-"),
@@ -870,21 +879,23 @@ model. Each plot shows:
 - **Light shaded band** : 95% prediction interval
 
 ```{r kainen_forecasts, fig.height=5, fig.width=10}
-forecast_dates <- seq(as.Date("2005-06-01"), as.Date("2005-12-01"), by = "month")
+fc_store <- list()
 
 for (pl in product_lines) {
   fits      <- fit_store[[pl]]
   best_name <- model_labels[[pl]]
-
   fc <- fits$stl
-
   fc_store[[pl]] <- fc
-
   print(
     autoplot(fc) +
-      xlim(2003, 2006) +
+      coord_cartesian(xlim = c(2005, 2006), ylim = c(0, 250)) +
+      scale_x_continuous(
+        breaks = 2005 + (0:11) / 12,
+        labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+      ) +
       ggtitle(paste(pl, "-- forecast Jun-Dec 2005 (", best_name, ")")) +
-      xlab("Month") +
+      xlab("Month (2005)") +
       ylab("Units Produced") +
       theme_minimal()
   )
@@ -896,11 +907,16 @@ for (pl in product_lines) {
 
 
 ```{r kainen_ppu}
+# Computed in line
 profit_per_unit <- Final_SalesXProduction_Productline %>%
-  filter(!is.na(ACTUAL_PROFIT),
+  filter(!is.na(TOTAL_SALES),
+         !is.na(AVG_PRODUCTION_COST_W_BASE),
          !is.na(TOTAL_UNITS_PRODUCED),
          TOTAL_UNITS_PRODUCED > 0) %>%
-  mutate(ppu = ACTUAL_PROFIT / TOTAL_UNITS_PRODUCED) %>%
+  mutate(
+    actual_profit = TOTAL_SALES - AVG_PRODUCTION_COST_W_BASE,
+    ppu           = actual_profit / TOTAL_UNITS_PRODUCED
+  ) %>%
   group_by(PRODUCTLINE) %>%
   summarise(avg_profit_per_unit = mean(ppu, na.rm = TRUE),
             n_months = n(),
@@ -1032,7 +1048,8 @@ p_total <- ggplot(profit_by_pl,
   labs(title   = "Total Projected Profit by Product Line (Jun-Dec 2005)",
        x       = "Total Projected Profit (USD Millions)",
        y       = NULL,
-  theme_minimal())
+       caption = paste0("Company Total: ", dollar(round(overall_profit)))) +
+  theme_minimal()
 
 p_total
 ```
@@ -1061,66 +1078,123 @@ p_factory <- ggplot(profit_by_factory,
 p_factory
 ```
 
-#### # Plot 4: ACF by Product Line
+#### # Plot 4 Monthly Projected Production by Product Line
+```{r kainen_plot_forecast_monthly, fig.height=5, fig.width=10}
+# Build a clean dataframe of the 7-month point forecasts
+fc_monthly <- do.call(rbind, lapply(product_lines, function(pl) {
+  fc <- fc_store[[pl]]
+  data.frame(
+    product_line = pl,
+    month        = seq(as.Date("2005-06-01"), as.Date("2005-12-01"), by = "month"),
+    month_label  = format(seq(as.Date("2005-06-01"), as.Date("2005-12-01"), by = "month"), "%b %Y"),
+    forecast     = pmax(0, as.numeric(fc$mean)),
+    lower80      = pmax(0, as.numeric(fc$lower[, 1])),
+    upper80      = pmax(0, as.numeric(fc$upper[, 1]))
+  )
+}))
 
-The ACF (autocorrelation function) plot shows how correlated each month's
-production value is with values from previous months (lags).
+month_order <- format(seq(as.Date("2005-06-01"), as.Date("2005-12-01"), by = "month"), "%b %Y")
+fc_monthly$month_label <- factor(fc_monthly$month_label, levels = month_order)
 
-```{r kainen_plot_acf, fig.height=10, fig.width=12}
-acf_plots <- list()
+# forecasted units per product line per month
+p_fc_monthly <- ggplot(fc_monthly,
+                       aes(x = month_label, y = forecast, fill = product_line)) +
+  geom_col(position = "dodge", width = 0.7) +
+  scale_fill_manual(values = PALETTE) +
+  labs(title = "Forecasted Monthly Production by Product Line (Jun-Dec 2005)",
+       x     = NULL,
+       y     = "Forecasted Units Produced",
+       fill  = "Product Line") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
-for (pl in product_lines) {
-  ts_obj   <- ts_list[[pl]]
-  acf_data <- acf(ts_obj, plot = FALSE, lag.max = 20)
-  df_acf   <- data.frame(lag = as.numeric(acf_data$lag),
-                         acf = as.numeric(acf_data$acf))
-  ci <- qnorm(0.975) / sqrt(length(ts_obj))
-
-  acf_plots[[pl]] <- ggplot(df_acf, aes(x = lag, y = acf)) +
-    geom_hline(yintercept = 0, color = "grey50") +
-    geom_hline(yintercept = c(-ci, ci), linetype = "dashed", color = "steelblue") +
-    geom_segment(aes(xend = lag, y = 0, yend = acf), color = PALETTE[pl]) +
-    geom_point(color = PALETTE[pl], size = 1.5) +
-    ylim(-1, 1) +
-    labs(title = pl, x = "Lag (months)", y = "ACF") +
-    theme_minimal()
-}
-
-g_acf <- do.call(grid.arrange,
-                 c(acf_plots, list(ncol = 2, top = "ACF by Product Line")))
-
+p_fc_monthly
 ```
+#### # Plot 5: Total Projected production by Product Line
+```{r kainen_plot_forecast_annual, fig.height=5, fig.width=8}
+fc_annual <- aggregate(forecast ~ product_line, data = fc_monthly, FUN = sum)
+fc_annual <- fc_annual[order(-fc_annual$forecast), ]
+fc_annual$product_line <- reorder(fc_annual$product_line, fc_annual$forecast)
 
-#### # Plot 5: Model Residuals
+p_fc_annual <- ggplot(fc_annual,
+                      aes(x = forecast, y = product_line, fill = as.character(product_line))) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = round(forecast)), hjust = -0.2, size = 3.5) +
+  scale_fill_manual(values = PALETTE) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(title   = "Total Forecasted Production by Product Line (Jun-Dec 2005)",
+       x       = "Total Forecasted Units",
+       y       = NULL) +
+  theme_minimal()
 
-The residual plot shows what is left over after the selected model has done its
-job. If the model captured all the structure in the series, the residuals should
-look like random noise with no seasonality or trends.
+p_fc_annual
+```
+#### # Plot 6: Monthly Projected Profit by Product Line
+```{r kainen_plot_profit_monthly_factory, fig.height=8, fig.width=12}
+# Join factory info onto the monthly profit dataframe
+fc_profit_factory <- merge(fc_profit, factory_map, by = "product_line", all.x = TRUE)
+fc_profit_factory$factory_label <- paste0("Factory ", fc_profit_factory$factory_id)
+fc_profit_factory$month_label   <- factor(fc_profit_factory$month_label, levels = month_order)
 
-```{r kainen_plot_residuals, fig.height=10, fig.width=12}
-resid_plots <- list()
+p_monthly_factory <- ggplot(fc_profit_factory,
+                             aes(x = month_label, y = projected_profit / 1e3,
+                                 fill = product_line)) +
+  geom_col(width = 0.7) +
+  facet_wrap(~ factory_label, ncol = 1) +
+  scale_fill_manual(values = PALETTE) +
+  scale_y_continuous(labels = dollar_format(suffix = "K", prefix = "$")) +
+  labs(title   = "Projected Monthly Profit by Factory (Jun-Dec 2005)",
+       x       = NULL,
+       y       = "Projected Profit (USD Thousands)",
+       fill    = "Product Line") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1),
+        strip.text  = element_text(face = "bold"))
 
-for (pl in product_lines) {
-  fits      <- fit_store[[pl]]
-  best_name <- model_labels[[pl]]
+p_monthly_factory
+```
+#### # Plot 7: Total Projected Profit by Factory and Product Line
+```{r kainen_plot_profit_annual_factory, fig.height=5, fig.width=10}
+# Summaries total Jun-Dec profit by factory and product line
+profit_factory_pl <- aggregate(projected_profit ~ factory_label + product_line,
+                                data = fc_profit_factory, FUN = sum)
 
-  res <- residuals(fits$best)
-  df_res <- data.frame(t = as.numeric(time(res)), resid = as.numeric(res))
+p_annual_factory <- ggplot(profit_factory_pl,
+                            aes(x = factory_label, y = projected_profit / 1e3,
+                                fill = product_line)) +
+  geom_col(width = 0.6) +
+  scale_fill_manual(values = PALETTE) +
+  scale_y_continuous(labels = dollar_format(suffix = "K", prefix = "$")) +
+  labs(title   = "Total Projected Profit by Factory and Product Line (Jun-Dec 2005)",
+       x       = NULL,
+       y       = "Total Projected Profit (USD Thousands)",
+       fill    = "Product Line") +
+  theme_minimal()
 
-  resid_plots[[pl]] <- ggplot(df_res, aes(x = t, y = resid)) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-    geom_line(color = PALETTE[pl]) +
-    geom_point(color = PALETTE[pl], size = 1.5) +
-    labs(title    = pl,
-         subtitle = paste("Model:", best_name),
-         x        = "Time",
-         y        = "Residual") +
-    theme_minimal()
-}
+p_annual_factory
+```
+#### # Plot 8: Total Projected Profit by Product Line
+```{r kainen_plot_profit_annual_pl, fig.height=5, fig.width=10}
+profit_pl_factory <- aggregate(projected_profit ~ product_line + factory_label,
+                                data = fc_profit_factory, FUN = sum)
+profit_pl_factory$product_line <- reorder(profit_pl_factory$product_line,
+                                           profit_pl_factory$projected_profit)
 
-g_resid <- do.call(grid.arrange,
-                   c(resid_plots, list(ncol = 2, top = "Model Residuals by Product Line")))
+p_annual_pl <- ggplot(profit_pl_factory,
+                       aes(x = projected_profit / 1e3, y = product_line,
+                           fill = factory_label)) +
+  geom_col(width = 0.6) +
+  scale_fill_manual(values = c("Factory 0" = "#264653",
+                               "Factory 1" = "#457B9D",
+                               "Factory 2" = "#2A9D8F")) +
+  scale_x_continuous(labels = dollar_format(suffix = "K", prefix = "$")) +
+  labs(title   = "Total Projected Profit by Product Line (Jun-Dec 2005)",
+       x       = "Total Projected Profit (USD Thousands)",
+       y       = NULL,
+       fill    = "Factory") +
+  theme_minimal()
 
+p_annual_pl
 ```
 
 
