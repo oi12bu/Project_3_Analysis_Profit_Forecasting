@@ -523,16 +523,16 @@ First we will visualize the total production to see if there are any overarching
 
 ```{r Load and Sort Data, echo = FALSE}
 # Loading the data
-df_total <- read_csv("monthly_salesXproduction.csv", show_col_types = FALSE)
-df_line <- read_csv("monthly_salesXproduction_by_productline.csv", show_col_types = FALSE)
+df_total <- Final_SalesXProduction_Month
+df_line <- Final_SalesXProduction_Productline
 
 # Sort chronologically by month
-df_total <- df_total %>% arrange(MONTH_PRODUCED)
-df_line <- df_line %>% arrange(MONTH_PRODUCED)
+df_total <- df_total %>% arrange(Month)
+df_line <- df_line %>% arrange(Month)
 ```
 
 ```{r Total Monthly Production Over Time, echo = FALSE}
-plot_total <- ggplot(df_total, aes(x = MONTH_PRODUCED, y = MONTHLY_PRODUCTION)) +
+plot_total <- ggplot(df_total, aes(x = Month, y = MONTHLY_PRODUCTION)) +
   geom_line(color = "blue", group = 1) +
   geom_point(color = "blue") +
   labs(title = "Total Monthly Production Over Time",
@@ -551,10 +551,9 @@ There doesn't seem to be much of a pattern there, so let's look at the productio
 ```{r Monthly Production by Product Line Over Time, echo = FALSE}
 df_line_filtered <- df_line %>% 
   drop_na(factory_id) %>% 
-  mutate(factory_label = paste("Factory", factory_id),
-         MONTH_DATE = ym(MONTH_PRODUCED))
+  mutate(factory_label = paste("Factory", factory_id))
 
-plot_productline <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+plot_productline <- ggplot(df_line_filtered, aes(x = Month, y = TOTAL_UNITS_PRODUCED,
                                         color = PRODUCTLINE, group = PRODUCTLINE)) +
   geom_line() +
   geom_point() +
@@ -576,10 +575,9 @@ It's still a bit jumbled, so now we will separate the data by factory.
 df_line_filtered <- df_line %>% 
   # Removing the factory with no data
   drop_na(factory_id) %>% 
-  mutate(factory_label = paste("Factory", factory_id),
-         MONTH_DATE = ym(MONTH_PRODUCED))
+  mutate(factory_label = paste("Factory", factory_id))
 
-plot_productline_faceted <- ggplot(df_line_filtered, aes(x = MONTH_DATE, y = TOTAL_UNITS_PRODUCED,
+plot_productline_faceted <- ggplot(df_line_filtered, aes(x = Month, y = TOTAL_UNITS_PRODUCED,
                                         color = PRODUCTLINE, group = PRODUCTLINE)) +
   geom_line() +
   geom_point() +
@@ -608,7 +606,7 @@ Next we will look for trend patterns and seasonality in our data.
 ```{r Time Series Decomposition for Seasonal Patterns and Trends, echo = FALSE}
 # Making a column of Date objects
 df_total = df_total %>% 
-  mutate(MONTH_DATE = ym(MONTH_PRODUCED))
+  mutate(MONTH_DATE = ym(Month))
 
 # Converting to a Time Series object
 start_year <- year(min(df_total$MONTH_DATE))
@@ -644,9 +642,9 @@ for (prod_line in valid_product_lines) {
   df_sub <- df_line %>% 
     filter(PRODUCTLINE == prod_line) %>% 
     # If a month is missing, fill it with 0
-    complete(MONTH_PRODUCED = unique(df_line$MONTH_PRODUCED),
+    complete(Month = unique(df_line$Month),
              fill = list(TOTAL_UNITS_PRODUCED = 0)) %>% 
-    arrange(MONTH_PRODUCED)
+    arrange(Month)
   
   # Create a Time Series object
   prod_ts <- ts(df_sub$TOTAL_UNITS_PRODUCED,
@@ -683,11 +681,11 @@ cat("Average Monthly Production:\t", round(mean(df_total$MONTHLY_PRODUCTION), 2)
 
 # Find peak production month
 peak_month <- df_total %>% filter(MONTHLY_PRODUCTION == max(MONTHLY_PRODUCTION))
-cat("Peak Production Month:\t\t", peak_month$MONTH_PRODUCED, "with", peak_month$MONTHLY_PRODUCTION, "units\n")
+cat("Peak Production Month:\t\t", peak_month$Month, "with", peak_month$MONTHLY_PRODUCTION, "units\n")
 
 # Find lowest production month
 lowest_month <- df_total %>% filter(MONTHLY_PRODUCTION == min(MONTHLY_PRODUCTION))
-cat("Lowest Production Month:\t", lowest_month$MONTH_PRODUCED, "with", lowest_month$MONTHLY_PRODUCTION, "units\n")
+cat("Lowest Production Month:\t", lowest_month$Month, "with", lowest_month$MONTHLY_PRODUCTION, "units\n")
 
 cat("Total Production by Product Line:\n")
 product_line_summary <- df_line %>% 
@@ -977,6 +975,7 @@ profit_per_unit$PRODUCTLINE <- reorder(profit_per_unit$PRODUCTLINE,
 ggplot(profit_per_unit,
        aes(x = avg_profit_per_unit / 1e3, y = PRODUCTLINE, fill = PRODUCTLINE)) +
   geom_col(width = 0.6, show.legend = FALSE) +
+  scale_fill_manual(values = palette) +
   scale_x_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title = "Average Profit Per Unit by Product Line",
        x     = "Avg Profit Per Unit (USD Thousands)",
@@ -1397,7 +1396,7 @@ These figures should be treated as a directional range rather than precise targe
 ggplot(fc_profit, aes(x = month_label, y = projected_profit / 1e3,
                        fill = product_line)) +
   geom_col(width = 0.7) +
-  scale_fill_brewer(palette = "Dark2") +
+  scale_fill_manual(values = palette) +
   scale_y_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title   = "Projected Monthly Profit by Product Line (Jun-Dec 2005)",
        x       = NULL,
@@ -1413,7 +1412,7 @@ profit_by_pl$product_line <- reorder(profit_by_pl$product_line,
 ggplot(profit_by_pl, aes(x = total_profit / 1e3, y = product_line,
                           fill = as.character(product_line))) +
   geom_col(width = 0.6, show.legend = FALSE) +
-  scale_fill_brewer(palette = "Dark2") +
+  scale_fill_manual(values = palette) +
   scale_x_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title   = "Total Projected Profit by Product Line (Jun-Dec 2005)",
        x       = "Total Projected Profit (USD Thousands)",
@@ -1428,7 +1427,7 @@ profit_factory_pl <- aggregate(projected_profit ~ factory_label + product_line,
 ggplot(profit_factory_pl, aes(x = factory_label, y = projected_profit / 1e3,
                                fill = product_line)) +
   geom_col(width = 0.6) +
-  scale_fill_brewer(palette = "Dark2") +
+  scale_fill_manual(values = palette) +
   scale_y_continuous(labels = scales::label_dollar(suffix = "K")) +
   labs(title   = "Total Projected Profit by Factory and Product Line (Jun-Dec 2005)",
        x       = NULL,
