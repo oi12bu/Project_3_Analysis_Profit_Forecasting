@@ -40,7 +40,7 @@ Forecasting involves using statistical formulas to anticipate future data trends
 
 * Production Forecasting:            Bea
 * Exploritory Data Analysis:         Elton
-* Cost and Profit Analysis:          Bea
+* Cost and Profit Analysis:          Bea and Kainen
 * Profit Forecasting:                Kainen
 * Additional visualizations or programatic testing located in the Production.RMD
 
