@@ -81,35 +81,29 @@ No Additional Notes
 
 | Tool | Version/Model | Purpose |
 |------|--------------|---------|
-|    |    |   |
+| Gemini   |  Pro  |  Formatting |
 
 ### Interactions Log
 
-#### Entry 1 — `YYYY-MM-DD`
+#### Entry 1 — `2026-03-16`
 
-**Task:** <!-- What were you trying to accomplish? -->
+**Task:** Format my visualizations to be more appealing
 
 **Prompt(s) Used:**
 ```
-<!-- Paste the exact prompt(s) you sent to the AI -->
+Now that I have facet wrapped this plot the x-axis labels are hard to read. Can you help me find a way to make it more clear?
 ```
 
 **AI Output Summary:**
-<!-- Briefly describe what the AI produced -->
+Gemini showed me how to scale and angle my labels, as well as skip certain intervals to show fewer labels and less clutter
 
-**Code/Content Adopted:** <!-- Yes / No / Partially -->
+**Code/Content Adopted:** Yes
 
 **Files Affected:**
-- `<!-- path/to/file.py -->`
+- `Project_3_Production.RMd`, `Project_3_Technical_Report`
 
 **Notes:**
-<!-- Any observations, modifications made, or caveats about the AI output -->
-
----
-
-<!-- Duplicate the entry block above for each additional AI interaction -->
-
----
+N/A
 
 ## AI USE: Kainen
 
